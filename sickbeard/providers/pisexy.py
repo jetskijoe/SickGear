@@ -17,7 +17,7 @@ import re
 import traceback
 
 from . import generic
-from sickbeard import logger, tvcache
+from sickbeard import logger
 from sickbeard.bs4_parser import BS4Parser
 from sickbeard.helpers import tryInt
 from lib.unidecode import unidecode
@@ -37,7 +37,6 @@ class PiSexyProvider(generic.TorrentProvider):
         self.url = self.urls['config_provider_home_uri']
 
         self.username, self.password, self.minseed, self.minleech = 4 * [None]
-        self.cache = PiSexyCache(self)
 
     def _authorised(self, **kwargs):
 
@@ -88,7 +87,7 @@ class PiSexyProvider(generic.TorrentProvider):
 
                                 download_url = self.urls['get'] % str(tr.find('a', href=rc['get'])['href']).lstrip('/')
 
-                            except (AttributeError, TypeError, ValueError):
+                            except (AttributeError, TypeError, ValueError, IndexError):
                                 continue
 
                             if title and download_url:
@@ -106,16 +105,6 @@ class PiSexyProvider(generic.TorrentProvider):
             results = list(set(results + items[mode]))
 
         return results
-
-
-class PiSexyCache(tvcache.TVCache):
-
-    def __init__(self, this_provider):
-        tvcache.TVCache.__init__(self, this_provider)
-
-    def _cache_data(self):
-
-        return self.provider.cache_data()
 
 
 provider = PiSexyProvider()

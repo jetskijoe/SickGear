@@ -32,7 +32,7 @@ from sickbeard import history
 
 from sickbeard.common import DOWNLOADED, SNATCHED, SNATCHED_PROPER, Quality
 
-from name_parser.parser import NameParser
+from name_parser.parser import NameParser, InvalidNameException, InvalidShowException
 
 
 def search_propers():
@@ -42,7 +42,7 @@ def search_propers():
 
     logger.log(u'Beginning search for new propers')
 
-    age_shows, age_anime = 2, 14
+    age_shows, age_anime = sickbeard.BACKLOG_DAYS + 2, 14
     aired_since_shows = datetime.datetime.today() - datetime.timedelta(days=age_shows)
     aired_since_anime = datetime.datetime.today() - datetime.timedelta(days=age_anime)
     recent_shows, recent_anime = _recent_history(aired_since_shows, aired_since_anime)
@@ -58,12 +58,16 @@ def search_propers():
     _set_last_proper_search(datetime.datetime.today().toordinal())
 
     run_at = ''
-    if None is sickbeard.properFinderScheduler.start_time:
-        run_in = sickbeard.properFinderScheduler.lastRun + sickbeard.properFinderScheduler.cycleTime - datetime.datetime.now()
-        hours, remainder = divmod(run_in.seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        run_at = u', next check in approx. ' + (
-            '%dh, %dm' % (hours, minutes) if 0 < hours else '%dm, %ds' % (minutes, seconds))
+    proper_sch = sickbeard.properFinderScheduler
+    if None is proper_sch.start_time:
+        run_in = proper_sch.lastRun + proper_sch.cycleTime - datetime.datetime.now()
+        run_at = u', next check '
+        if datetime.timedelta() > run_in:
+            run_at += u'imminent'
+        else:
+            hours, remainder = divmod(run_in.seconds, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            run_at += u'in approx. ' + ('%dh, %dm' % (hours, minutes) if 0 < hours else '%dm, %ds' % (minutes, seconds))
 
     logger.log(u'Completed the search for new propers%s' % run_at)
 
@@ -100,7 +104,7 @@ def _get_proper_list(aired_since_shows, recent_shows, recent_anime):
             name = _generic_name(x.name)
             if name not in propers:
                 try:
-                    parse_result = np.parse(x.title)
+                    parse_result = np.parse(x.name)
                     if parse_result.series_name and parse_result.episode_numbers and \
                             parse_result.show.indexerid in recent_shows + recent_anime:
                         logger.log(u'Found new proper: ' + x.name, logger.DEBUG)
@@ -108,6 +112,8 @@ def _get_proper_list(aired_since_shows, recent_shows, recent_anime):
                         x.provider = cur_provider
                         propers[name] = x
                         count += 1
+                except (InvalidNameException, InvalidShowException):
+                    continue
                 except Exception:
                     continue
 
@@ -227,7 +233,7 @@ def _download_propers(proper_list):
                 continue
 
             # make sure that none of the existing history downloads are the same proper we're trying to download
-            clean_proper_name = _generic_name(helpers.remove_non_release_groups(cur_proper.name, show_obj.is_anime()))
+            clean_proper_name = _generic_name(helpers.remove_non_release_groups(cur_proper.name, show_obj.is_anime))
             is_same = False
             for result in history_results:
                 # if the result exists in history already we need to skip it

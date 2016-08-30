@@ -1,4 +1,4 @@
-# Author: Nic Wolfe <nic@wolfeden.ca>
+﻿# Author: Nic Wolfe <nic@wolfeden.ca>
 # URL: http://code.google.com/p/sickbeard/
 #
 # This file is part of SickGear.
@@ -17,7 +17,6 @@
 # along with SickGear.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
-import urllib
 
 import sickbeard
 
@@ -28,14 +27,14 @@ from sickbeard.exceptions import AuthException
 
 class NewznabProvider(generic.NZBProvider):
 
-    def __init__(self, name, url, key='', cat_ids='5030,5040', search_mode='eponly',
+    def __init__(self, name, url, key='', cat_ids=None, search_mode=None,
                  search_fallback=False, enable_recentsearch=False, enable_backlog=False):
         generic.NZBProvider.__init__(self, name, True, False)
 
         self.url = url
         self.key = key
-        self.cat_ids = cat_ids
-        self.search_mode = search_mode
+        self.cat_ids = cat_ids or '5030,5040'
+        self.search_mode = search_mode or 'eponly'
         self.search_fallback = search_fallback
         self.enable_recentsearch = enable_recentsearch
         self.enable_backlog = enable_backlog
@@ -82,12 +81,11 @@ class NewznabProvider(generic.NZBProvider):
         if isinstance(api_key, basestring):
             params['apikey'] = api_key
 
-        categories = self.get_url('%s/api' % self.url, params=params, timeout=10)
+        url = '%s/api?%s' % (self.url.strip('/'), '&'.join(['%s=%s' % (k, v) for k, v in params.items()]))
+        categories = self.get_url(url, timeout=10)
         if not categories:
-            logger.log(u'Error getting html for [%s/api?%s]' %
-                       (self.url, '&'.join('%s=%s' % (x, y) for x, y in params.items())), logger.DEBUG)
-            return (False, return_categories, 'Error getting html for [%s]' %
-                    ('%s/api?%s' % (self.url, '&'.join('%s=%s' % (x, y) for x, y in params.items()))))
+            logger.log(u'Error getting html for [%s]' % url, logger.DEBUG)
+            return False, return_categories, 'Error getting html for [%s]' % url
 
         xml_categories = helpers.parse_xml(categories)
         if not xml_categories:
@@ -116,18 +114,23 @@ class NewznabProvider(generic.NZBProvider):
         base_params = {}
 
         # season
+        ep_detail = None
         if ep_obj.show.air_by_date or ep_obj.show.is_sports:
-            date_str = str(ep_obj.airdate).split('-')[0]
-            base_params['season'] = date_str
-            base_params['q'] = date_str.replace('-', '.')
+            airdate = str(ep_obj.airdate).split('-')[0]
+            base_params['season'] = airdate
+            base_params['q'] = airdate
+            if ep_obj.show.air_by_date:
+                ep_detail = '+"%s"' % airdate
         elif ep_obj.show.is_anime:
             base_params['season'] = '%d' % ep_obj.scene_absolute_number
         else:
             base_params['season'] = str((ep_obj.season, ep_obj.scene_season)[bool(ep_obj.show.is_scene)])
+            ep_detail = 'S%02d' % helpers.tryInt(base_params['season'], 1)
 
-        # search
+        # id search
         ids = helpers.mapIndexersToShow(ep_obj.show)
-        if ids[1]:  # or ids[2]:
+        ids_fail = '6box' in self.name
+        if not ids_fail and ids[1]:  # or ids[2]:
             params = base_params.copy()
             use_id = False
             if ids[1] and self.supports_tvdbid():
@@ -138,15 +141,25 @@ class NewznabProvider(generic.NZBProvider):
                 use_id = True
             use_id and search_params.append(params)
 
-        # add new query strings for exceptions
+        # query search and exceptions
         name_exceptions = list(
             set([helpers.sanitizeSceneName(a) for a in
                  scene_exceptions.get_scene_exceptions(ep_obj.show.indexerid) + [ep_obj.show.name]]))
+
+        spacer = 'geek' in self.get_id() and ' ' or '.'
         for cur_exception in name_exceptions:
             params = base_params.copy()
+            cur_exception = cur_exception.replace('.', spacer)
             if 'q' in params:
-                params['q'] = '%s.%s' % (cur_exception, params['q'])
-            search_params.append(params)
+                params['q'] = '%s%s%s' % (cur_exception, spacer, params['q'])
+                search_params.append(params)
+
+            if ep_detail:
+                params = base_params.copy()
+                params['q'] = '%s%s%s' % (cur_exception, spacer, ep_detail)
+                'season' in params and params.pop('season')
+                'ep' in params and params.pop('ep')
+                search_params.append(params)
 
         return [{'Season': search_params}]
 
@@ -158,20 +171,28 @@ class NewznabProvider(generic.NZBProvider):
         if not ep_obj:
             return [base_params]
 
+        ep_detail = None
         if ep_obj.show.air_by_date or ep_obj.show.is_sports:
-            date_str = str(ep_obj.airdate)
-            base_params['season'] = date_str.partition('-')[0]
-            base_params['ep'] = date_str.partition('-')[2].replace('-', '/')
+            airdate = str(ep_obj.airdate).split('-')
+            base_params['season'] = airdate[0]
+            if ep_obj.show.air_by_date:
+                base_params['ep'] = '/'.join(airdate[1:])
+                ep_detail = '+"%s.%s"' % (base_params['season'], '.'.join(airdate[1:]))
         elif ep_obj.show.is_anime:
-            base_params['ep'] = '%i' % int(
-                ep_obj.scene_absolute_number if int(ep_obj.scene_absolute_number) > 0 else ep_obj.scene_episode)
+            base_params['ep'] = '%i' % (helpers.tryInt(ep_obj.scene_absolute_number) or
+                                        helpers.tryInt(ep_obj.scene_episode))
+            ep_detail = '%02d' % helpers.tryInt(base_params['ep'])
         else:
             base_params['season'], base_params['ep'] = (
                 (ep_obj.season, ep_obj.episode), (ep_obj.scene_season, ep_obj.scene_episode))[ep_obj.show.is_scene]
+            ep_detail = sickbeard.config.naming_ep_type[2] % {
+                'seasonnumber': helpers.tryInt(base_params['season'], 1),
+                'episodenumber': helpers.tryInt(base_params['ep'], 1)}
 
-        # search
+        # id search
         ids = helpers.mapIndexersToShow(ep_obj.show)
-        if ids[1]:  # or ids[2]:
+        ids_fail = '6box' in self.name
+        if not ids_fail and ids[1]:  # or ids[2]:
             params = base_params.copy()
             use_id = False
             if ids[1]:
@@ -183,25 +204,25 @@ class NewznabProvider(generic.NZBProvider):
                 use_id = True
             use_id and search_params.append(params)
 
-        # add new query strings for exceptions
+        # query search and exceptions
         name_exceptions = list(
             set([helpers.sanitizeSceneName(a) for a in
                  scene_exceptions.get_scene_exceptions(ep_obj.show.indexerid) + [ep_obj.show.name]]))
 
+        spacer = 'geek' in self.get_id() and ' ' or '.'
+        if sickbeard.scene_exceptions.has_abs_episodes(ep_obj):
+            search_params.append({'q': '%s%s%s' % (ep_obj.show.name, spacer, base_params['ep'])})
         for cur_exception in name_exceptions:
             params = base_params.copy()
+            cur_exception = cur_exception.replace('.', spacer)
             params['q'] = cur_exception
             search_params.append(params)
 
-            if ep_obj.show.is_anime:
-                # Experimental, add a search string without search explicitly for the episode!
-                # Remove the ?ep=e46 parameter and use the episode number to the query parameter.
-                # Can be useful for newznab indexers that do not have the episodes 100% parsed.
-                # Start with only applying the search string to anime shows
+            if ep_detail:
                 params = base_params.copy()
-                params['q'] = '%s.%02d' % (cur_exception, int(params['ep']))
-                if 'ep' in params:
-                    params.pop('ep')
+                params['q'] = '%s%s%s' % (cur_exception, spacer, ep_detail)
+                'season' in params and params.pop('season')
+                'ep' in params and params.pop('ep')
                 search_params.append(params)
 
         return [{'Episode': search_params}]
@@ -231,8 +252,8 @@ class NewznabProvider(generic.NZBProvider):
 
                 # category ids
                 cat = []
-                cat_anime = ('5070', '6070')['nzbs_org' == self.get_id()]
-                cat_sport = '5060'
+                cat_sport = ['5060']
+                cat_anime = (['5070'], ['6070,7040'])['nzbs_org' == self.get_id()]
                 if 'Episode' == mode or 'Season' == mode:
                     if not ('rid' in params or 'tvdbid' in params or 'q' in params or not self.supports_tvdbid()):
                         logger.log('Error no rid, tvdbid, or search term available for search.')
@@ -240,17 +261,23 @@ class NewznabProvider(generic.NZBProvider):
 
                     if self.show:
                         if self.show.is_sports:
-                            cat = [cat_sport]
+                            cat = cat_sport
                         elif self.show.is_anime:
-                            cat = [cat_anime]
+                            cat = cat_anime
                 else:
-                    cat = [cat_sport, cat_anime]
+                    cat = cat_sport + cat_anime
 
                 if self.cat_ids or len(cat):
                     base_params['cat'] = ','.join(sorted(set(self.cat_ids.split(',') + cat)))
 
                 request_params = base_params.copy()
+                if 'q' in params and not (any(x in params for x in ['season', 'ep'])):
+                    request_params['t'] = 'search'
                 request_params.update(params)
+
+                # workaround a strange glitch
+                if sum(ord(i) for i in self.get_id()) in [383] and 5 == 14 - request_params['maxage']:
+                    request_params['maxage'] += 1
 
                 offset = 0
                 batch_count = not 0
@@ -258,10 +285,9 @@ class NewznabProvider(generic.NZBProvider):
                 # hardcoded to stop after a max of 4 hits (400 items) per query
                 while (offset <= total) and (offset < (200, 400)[self.supports_tvdbid()]) and batch_count:
                     cnt = len(results)
-                    search_url = '%sapi?%s' % (self.url, urllib.urlencode(request_params))
 
-                    data = self.cache.getRSSFeed(search_url)
-                    i and time.sleep(1.1)
+                    data = self.cache.getRSSFeed('%sapi' % self.url, params=request_params)
+                    i and time.sleep(2.1)
 
                     if not data or not self.check_auth_from_data(data):
                         break
@@ -295,13 +321,13 @@ class NewznabProvider(generic.NZBProvider):
                         break
 
                     if offset != request_params['offset']:
-                        logger.log('Tell your newznab provider to fix their bloody newznab responses')
+                        logger.log('Ask your newznab provider to fix their newznab responses')
                         break
 
                     request_params['offset'] += request_params['limit']
                     if total <= request_params['offset']:
                         exit_log = True
-                        logger.log('%s item%s found that will be used for episode matching' % (total, helpers.maybe_plural(total)),
+                        logger.log('%s item%s found for episode matching' % (total, helpers.maybe_plural(total)),
                                    logger.DEBUG)
                         break
 
@@ -310,10 +336,10 @@ class NewznabProvider(generic.NZBProvider):
                     logger.log('%s more item%s to fetch from a batch of up to %s items.'
                                % (items, helpers.maybe_plural(items), request_params['limit']), logger.DEBUG)
 
-                    batch_count = self._log_result(results, mode, cnt, search_url)
+                    batch_count = self._log_result(results, mode, cnt, data.rq_response['url'])
 
                 if exit_log:
-                    self._log_result(results, mode, cnt, search_url)
+                    self._log_result(results, mode, cnt, data and data.rq_response['url'] or '%sapi' % self.url)
                     exit_log = False
 
                 if 'tvdbid' in request_params and len(results):
@@ -339,18 +365,17 @@ class NewznabCache(tvcache.TVCache):
 
         result = []
 
-        if True or self.shouldUpdate():
+        if 4489 != sickbeard.RECENTSEARCH_FREQUENCY or self.should_update():
             try:
                 self._checkAuth()
+                items = self.provider.cache_data()
             except Exception:
-                return result
+                items = None
 
-            items = self.provider.cache_data()
             if items:
-
                 self._clearCache()
-                self.setLastUpdate()
 
+                # parse data
                 cl = []
                 for item in items:
                     ci = self._parseItem(item)
@@ -360,6 +385,9 @@ class NewznabCache(tvcache.TVCache):
                 if 0 < len(cl):
                     my_db = self.get_db()
                     my_db.mass_action(cl)
+
+            # set updated as time the attempt to fetch data is
+            self.setLastUpdate()
 
         return result
 

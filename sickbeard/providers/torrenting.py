@@ -19,7 +19,7 @@ import re
 import traceback
 
 from . import generic
-from sickbeard import logger, tvcache
+from sickbeard import logger
 from sickbeard.bs4_parser import BS4Parser
 from sickbeard.helpers import tryInt
 from lib.unidecode import unidecode
@@ -30,27 +30,26 @@ class TorrentingProvider(generic.TorrentProvider):
     def __init__(self):
         generic.TorrentProvider.__init__(self, 'Torrenting')
 
-        self.url_base = 'https://www.torrenting.com/'
+        self.url_home = ['https://%s/' % u for u in 'www.torrenting.com', 'ttonline.us']
 
-        self.api = 'https://ttonline.us/'
-        self.urls = {'config_provider_home_uri': self.url_base,
-                     'login': self.api + 'secure.php',
-                     'search': self.api + 'browse.php?%s&search=%s',
-                     'get': self.api + '%s'}
+        self.url_vars = {'login': 'rss.php', 'search': 'browse.php?%s&search=%s', 'get': '%s'}
+        self.url_tmpl = {'config_provider_home_uri': '%(home)s', 'login': '%(home)s%(vars)s',
+                         'search': '%(home)s%(vars)s', 'get': '%(home)s%(vars)s'}
 
         self.categories = {'shows': [4, 5]}
 
-        self.url = self.urls['config_provider_home_uri']
-
         self.digest, self.minseed, self.minleech = 3 * [None]
-        self.cache = TorrentingCache(self)
 
     def _authorised(self, **kwargs):
 
         return super(TorrentingProvider, self)._authorised(
-            logged_in=(lambda x=None: (None is x or 'Other Links' in x) and self.has_all_cookies() and
+            logged_in=(lambda x='': ('RSS link' in x) and self.has_all_cookies() and
                        self.session.cookies['uid'] in self.digest and self.session.cookies['pass'] in self.digest),
             failed_msg=(lambda x=None: u'Invalid cookie details for %s. Check settings'))
+
+    @staticmethod
+    def _has_signature(data=None):
+        return generic.TorrentProvider._has_signature(data) or (data and re.search(r'(?i)<title[^<]+?Torrenting', data))
 
     def _search_provider(self, search_params, **kwargs):
 
@@ -60,9 +59,9 @@ class TorrentingProvider(generic.TorrentProvider):
 
         items = {'Cache': [], 'Season': [], 'Episode': [], 'Propers': []}
 
-        rc = dict((k, re.compile('(?i)' + v)) for (k, v) in {'info': 'detail', 'get': 'download',
-                                                             'cats': 'cat=(?:%s)' % self._categories_string(template='', delimiter='|')
-                                                             }.items())
+        rc = dict((k, re.compile('(?i)' + v)) for (k, v) in {
+            'info': 'detail', 'cats': 'cat=(?:%s)' % self._categories_string(template='', delimiter='|'),
+            'get': 'download'}.items())
         for mode in search_params.keys():
             for search_string in search_params[mode]:
                 search_string = isinstance(search_string, unicode) and unidecode(search_string) or search_string
@@ -90,8 +89,9 @@ class TorrentingProvider(generic.TorrentProvider):
                                     continue
 
                                 info = tr.find('a', href=rc['info'])
-                                title = 'title' in info.attrs and info.attrs['title'] or info.get_text().strip()
-                                download_url = self.urls['get'] % tr.find('a', href=rc['get']).get('href')
+                                title = info.attrs.get('title') or info.get_text().strip()
+                                download_url = self.urls['get'] % str(tr.find('a', href=rc['get'])['href']).lstrip('/')
+
                             except (AttributeError, TypeError, ValueError):
                                 continue
 
@@ -115,16 +115,6 @@ class TorrentingProvider(generic.TorrentProvider):
     def ui_string(key):
 
         return 'torrenting_digest' == key and 'use... \'uid=xx; pass=yy\'' or ''
-
-
-class TorrentingCache(tvcache.TVCache):
-
-    def __init__(self, this_provider):
-        tvcache.TVCache.__init__(self, this_provider)
-
-    def _cache_data(self):
-
-        return self.provider.cache_data()
 
 
 provider = TorrentingProvider()

@@ -21,6 +21,7 @@ import operator
 import platform
 import re
 import uuid
+import traceback
 
 import sickbeard
 import logger
@@ -35,7 +36,7 @@ mediaExtensions = ['avi', 'mkv', 'mpg', 'mpeg', 'wmv', 'ogm', 'mp4', 'iso', 'img
 
 subtitleExtensions = ['srt', 'sub', 'ass', 'idx', 'ssa']
 
-cpu_presets = {'LOW': 0.01, 'NORMAL': 0.05, 'HIGH': 0.1}
+cpu_presets = {'DISABLED': 0, 'LOW': 0.01, 'NORMAL': 0.05, 'HIGH': 0.1}
 
 # Other constants
 MULTI_EP_RESULT = -1
@@ -86,14 +87,17 @@ multiEpStrings = {NAMING_REPEAT: 'Repeat',
 class Quality:
     NONE = 0  # 0
     SDTV = 1  # 1
-    SDDVD = 1 << 1  # 2
+    HDWEBDL = 1 << 1  # 32
     HDTV = 1 << 2  # 4
-    RAWHDTV = 1 << 3  # 8  -- 720p/1080i mpeg2 (trollhd releases)
-    FULLHDTV = 1 << 4  # 16 -- 1080p HDTV (QCF releases)
-    HDWEBDL = 1 << 5  # 32
+    SDDVD = 1 << 3  # 2
+    RAWHDTV = 1 << 4  # 8  -- 720p/1080i mpeg2 (trollhd releases)
+    FULLHDTV = 1 << 5  # 16 -- 1080p HDTV (QCF releases)
     FULLHDWEBDL = 1 << 6  # 64 -- 1080p web-dl
     HDBLURAY = 1 << 7  # 128
     FULLHDBLURAY = 1 << 8  # 256
+    # UHD4KTV = 1 << 9 # reserved for the future
+    UHD4KWEB = 1 << 10
+    # UHD4KBLURAY = 1 << 11 # reserved for the future
 
     # put these bits at the other end of the spectrum, far enough out that they shouldn't interfere
     UNKNOWN = 1 << 15  # 32768
@@ -108,7 +112,8 @@ class Quality:
                       HDWEBDL: '720p WEB-DL',
                       FULLHDWEBDL: '1080p WEB-DL',
                       HDBLURAY: '720p BluRay',
-                      FULLHDBLURAY: '1080p BluRay'}
+                      FULLHDBLURAY: '1080p BluRay',
+                      UHD4KWEB: '2160p UHD 4K WEB'}
 
     statusPrefixes = {DOWNLOADED: 'Downloaded',
                       SNATCHED: 'Snatched',
@@ -204,14 +209,21 @@ class Quality:
                 return Quality.HDTV
             else:
                 return Quality.UNKNOWN
-
-        if checkName(['(pdtv|hdtv|dsr|tvrip)([-]|.((aac|ac3|dd).?\d\.?\d.)*(xvid|x264|h.?264))'], all) and not checkName(['(720|1080|2160)[pi]'], all) \
+        if checkName(['TrollHD'], all):
+            ret = Quality.FULLHDBLURAY
+        elif checkName(['1080[pi]'],all):
+            ret = Quality.FULLHDBLURAY
+ 
+        elif checkName(['(pdtv|hdtv|dsr|tvrip)([-]|.((aac|ac3|dd).?\d\.?\d.)*(xvid|x264|h.?264))'], all) and not checkName(['(720|1080|2160)[pi]'], all) \
                 and not checkName(['hr.ws.pdtv.(x264|h.?264)'], any):
             return Quality.SDTV
-        elif checkName(['web.?dl|web.?rip', 'xvid|x264|h.?264'], all) and not checkName(['(720|1080|2160)[pi]'], all):
+        elif checkName(['web.?(dl|rip|.[hx]26[45])', 'xvid|x26[45]|.?26[45]'], all) and not checkName(['(720|1080|2160)[pi]'], all):
             return Quality.SDTV
         elif checkName(['(dvd.?rip|b[r|d]rip)(.ws)?(.(xvid|divx|x264|h.?264))?'], any) and not checkName(['(720|1080|2160)[pi]'], all):
             return Quality.SDDVD
+        elif checkName(['(xvid|divx|480p)'], any) and not checkName(['(720|1080|2160)[pi]'], all) \
+                and not checkName(['hr.ws.pdtv.(x264|h.?264)'], any):
+            return Quality.SDTV
         elif checkName(['720p', 'hdtv', 'x264|h.?264'], all) or checkName(['hr.ws.pdtv.(x264|h.?264)'], any) \
                 and not checkName(['(1080|2160)[pi]'], all):
             return Quality.HDTV
@@ -219,14 +231,16 @@ class Quality:
             return Quality.RAWHDTV
         elif checkName(['1080p', 'hdtv', 'x264'], all):
             return Quality.FULLHDTV
-        elif checkName(['720p', 'web.?dl|web.?rip'], all) or checkName(['720p', 'itunes', 'x264|h.?264'], all):
+        elif checkName(['720p', 'web.?(dl|rip|.[hx]26[45])'], all) or checkName(['720p', 'itunes', 'x264|h.?264'], all):
             return Quality.HDWEBDL
-        elif checkName(['1080p', 'web.?dl|web.?rip'], all) or checkName(['1080p', 'itunes', 'x264|h.?264'], all):
+        elif checkName(['1080p', 'web.?(dl|rip|.[hx]26[45])'], all) or checkName(['1080p', 'itunes', 'x264|h.?264'], all):
             return Quality.FULLHDWEBDL
         elif checkName(['720p', 'blu.?ray|hddvd|b[r|d]rip', 'x264|h.?264'], all):
             return Quality.HDBLURAY
         elif checkName(['1080p', 'blu.?ray|hddvd|b[r|d]rip', 'x264|h.?264'], all):
             return Quality.FULLHDBLURAY
+        elif checkName(['2160p', 'web.?(dl|rip|.[hx]26[45])'], all):
+            return Quality.UHD4KWEB
         else:
             return Quality.UNKNOWN
 
@@ -234,6 +248,7 @@ class Quality:
     def fileQuality(filename):
 
         from sickbeard import encodingKludge as ek
+        from sickbeard.exceptions import ex
         if ek.ek(os.path.isfile, filename):
 
             from hachoir_parser import createParser
@@ -241,10 +256,14 @@ class Quality:
             from hachoir_core.stream import InputStreamError
 
             parser = height = None
+            msg = u'Hachoir can\'t parse file "%s" content quality because it found error: %s'
             try:
-                parser = createParser(filename)
+                parser = ek.ek(createParser, filename)
             except InputStreamError as e:
-                logger.log('Hachoir can\'t parse file content quality because it found error: %s' % e.text, logger.WARNING)
+                logger.log(msg % (filename, e.text), logger.WARNING)
+            except Exception as e:
+                logger.log(msg % (filename, ex(e)), logger.ERROR)
+                logger.log(traceback.format_exc(), logger.DEBUG)
 
             if parser:
                 extract = extractMetadata(parser)
@@ -333,6 +352,7 @@ HD = Quality.combineQualities(
     [])  # HD720p + HD1080p
 HD720p = Quality.combineQualities([Quality.HDTV, Quality.HDWEBDL, Quality.HDBLURAY], [])
 HD1080p = Quality.combineQualities([Quality.FULLHDTV, Quality.FULLHDWEBDL, Quality.FULLHDBLURAY], [])
+UHD2160p = Quality.combineQualities([Quality.UHD4KWEB], [])
 ANY = Quality.combineQualities(
     [Quality.SDTV, Quality.SDDVD, Quality.HDTV, Quality.FULLHDTV, Quality.HDWEBDL, Quality.FULLHDWEBDL,
      Quality.HDBLURAY, Quality.FULLHDBLURAY, Quality.UNKNOWN], [])  # SD + HD
@@ -340,12 +360,13 @@ ANY = Quality.combineQualities(
 # legacy template, cant remove due to reference in mainDB upgrade?
 BEST = Quality.combineQualities([Quality.SDTV, Quality.HDTV, Quality.HDWEBDL], [Quality.HDTV])
 
-qualityPresets = (SD, HD, HD720p, HD1080p, ANY)
+qualityPresets = (SD, HD, HD720p, HD1080p, UHD2160p, ANY)
 
 qualityPresetStrings = {SD: 'SD',
                         HD: 'HD',
                         HD720p: 'HD720p',
                         HD1080p: 'HD1080p',
+                        UHD2160p: 'UHD2160p',
                         ANY: 'Any'}
 
 

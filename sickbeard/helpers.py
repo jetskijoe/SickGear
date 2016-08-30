@@ -52,7 +52,7 @@ except ImportError:
 
 from sickbeard.exceptions import MultipleShowObjectsException, ex
 from sickbeard import logger, classes, db, notifiers, clients
-from sickbeard.common import USER_AGENT, mediaExtensions, subtitleExtensions
+from sickbeard.common import USER_AGENT, mediaExtensions, subtitleExtensions, cpu_presets
 from sickbeard import encodingKludge as ek
 
 from lib.cachecontrol import CacheControl, caches
@@ -130,33 +130,19 @@ def isSyncFile(filename):
         return False
 
 
-def isMediaFile(filename):
+def has_media_ext(filename):
     # ignore samples
-    if re.search('(^|[\W_])(sample\d*)[\W_]', filename, re.I):
+    if re.search('(^|[\W_])(sample\d*)[\W_]', filename, re.I) \
+            or filename.startswith('._'):  # and MAC OS's 'resource fork' files
         return False
 
-    # ignore MAC OS's retarded "resource fork" files
-    if filename.startswith('._'):
-        return False
-
-    sepFile = filename.rpartition(".")
-
-    if re.search('extras?$', sepFile[0], re.I):
-        return False
-
-    if sepFile[2].lower() in mediaExtensions:
-        return True
-    else:
-        return False
+    sep_file = filename.rpartition('.')
+    return (None is re.search('extras?$', sep_file[0], re.I)) and (sep_file[2].lower() in mediaExtensions)
 
 
-def isRarFile(filename):
-    archive_regex = '(?P<file>^(?P<base>(?:(?!\.part\d+\.rar$).)*)\.(?:(?:part0*1\.)?rar)$)'
+def is_first_rar_volume(filename):
 
-    if re.search(archive_regex, filename):
-        return True
-
-    return False
+    return None is not re.search('(?P<file>^(?P<base>(?:(?!\.part\d+\.rar$).)*)\.(?:(?:part0*1\.)?rar)$)', filename)
 
 
 def sanitizeFileName(name):
@@ -166,6 +152,9 @@ def sanitizeFileName(name):
 
     # remove leading/trailing periods and spaces
     name = name.strip(' .')
+
+    for char in sickbeard.REMOVE_FILENAME_CHARS or []:
+        name = name.replace(char, '')
 
     return name
 
@@ -210,17 +199,21 @@ def searchIndexerForShowID(regShowName, indexer=None, indexer_id=None, ui=None):
         t = sickbeard.indexerApi(i).indexer(**lINDEXER_API_PARMS)
 
         for name in showNames:
-            logger.log(u'Trying to find ' + name + ' on ' + sickbeard.indexerApi(i).name, logger.DEBUG)
+            logger.log('Trying to find %s on %s' % (name, sickbeard.indexerApi(i).name), logger.DEBUG)
 
             try:
                 result = t[indexer_id] if indexer_id else t[name]
             except:
                 continue
 
-            seriesname = series_id = False
-            for search in result:
-                seriesname = search['seriesname']
-                series_id = search['id']
+            seriesname = series_id = None
+            for search in result if isinstance(result, list) else [result]:
+                try:
+                    seriesname = search['seriesname']
+                    series_id = search['id']
+                except:
+                    series_id = seriesname = None
+                    continue
                 if seriesname and series_id:
                     break
 
@@ -257,7 +250,7 @@ def listMediaFiles(path):
         if ek.ek(os.path.isdir, fullCurFile) and not curFile.startswith('.') and not curFile == 'Extras':
             files += listMediaFiles(fullCurFile)
 
-        elif isMediaFile(curFile):
+        elif has_media_ext(curFile):
             files.append(fullCurFile)
 
     return files
@@ -869,7 +862,7 @@ def full_sanitizeSceneName(name):
     return re.sub('[. -]', ' ', sanitizeSceneName(name)).lower().lstrip()
 
 
-def get_show(name, try_scene_exceptions=False):
+def get_show(name, try_scene_exceptions=False, use_cache=True):
     if not sickbeard.showList or None is name:
         return
 
@@ -888,7 +881,7 @@ def get_show(name, try_scene_exceptions=False):
                 show_obj = findCertainShow(sickbeard.showList, indexer_id)
 
         # add show to cache
-        if show_obj and not from_cache:
+        if use_cache and show_obj and not from_cache:
             sickbeard.name_cache.addNameToCache(name, show_obj.indexerid)
     except Exception as e:
         logger.log(u'Error when attempting to find show: ' + name + ' in SickGear: ' + str(e), logger.DEBUG)
@@ -1116,14 +1109,22 @@ def getURL(url, post_data=None, params=None, headers=None, timeout=30, session=N
     # request session
     if None is session:
         session = requests.session()
-    cache_dir = sickbeard.CACHE_DIR or _getTempDir()
-    session = CacheControl(sess=session, cache=caches.FileCache(os.path.join(cache_dir, 'sessions')))
+
+    if not kwargs.get('nocache'):
+        cache_dir = sickbeard.CACHE_DIR or _getTempDir()
+        session = CacheControl(sess=session, cache=caches.FileCache(os.path.join(cache_dir, 'sessions')))
+    else:
+        del(kwargs['nocache'])
 
     # request session headers
     req_headers = {'User-Agent': USER_AGENT, 'Accept-Encoding': 'gzip,deflate'}
     if headers:
         req_headers.update(headers)
     session.headers.update(req_headers)
+
+    mute_connect_err = kwargs.get('mute_connect_err')
+    if mute_connect_err:
+        del(kwargs['mute_connect_err'])
 
     # request session ssl verify
     session.verify = False
@@ -1152,45 +1153,72 @@ def getURL(url, post_data=None, params=None, headers=None, timeout=30, session=N
                 }
 
         # decide if we get or post data to server
+        if 'post_json' in kwargs:
+            kwargs.setdefault('json', kwargs.get('post_json'))
+            del(kwargs['post_json'])
         if post_data:
-            resp = session.post(url, data=post_data, timeout=timeout, **kwargs)
+            kwargs.setdefault('data', post_data)
+        if 'data' in kwargs or 'json' in kwargs:
+            resp = session.post(url, timeout=timeout, **kwargs)
         else:
             resp = session.get(url, timeout=timeout, **kwargs)
+            if resp.ok and not resp.content and 'url=' in resp.headers.get('Refresh', '').lower():
+                url = resp.headers.get('Refresh').lower().split('url=')[1].strip('/')
+                if not url.startswith('http'):
+                    parsed[2] = '/%s' % url
+                    url = urlparse.urlunparse(parsed)
+                resp = session.get(url, timeout=timeout, **kwargs)
 
         if not resp.ok:
+            http_err_text = 'CloudFlare Ray ID' in resp.content and 'CloudFlare reports, "Website is offline"; ' or ''
             if resp.status_code in clients.http_error_code:
-                http_err_text = clients.http_error_code[resp.status_code]
+                http_err_text += clients.http_error_code[resp.status_code]
             elif resp.status_code in range(520, 527):
-                http_err_text = 'CloudFlare to origin server connection failure'
+                http_err_text += 'Origin server connection failure'
             else:
                 http_err_text = 'Custom HTTP error code'
-            logger.log(u'Requested url %s returned status code is %s: %s'
-                       % (url, resp.status_code, http_err_text), logger.DEBUG)
+            logger.log(u'Response not ok. %s: %s from requested url %s'
+                       % (resp.status_code, http_err_text, url), logger.DEBUG)
             return
 
     except requests.exceptions.HTTPError as e:
-        logger.log(u'HTTP error %s while loading URL %s' % (e.errno, url), logger.WARNING)
+        logger.log(u'HTTP error %s while loading URL%s' % (
+            e.errno, _maybe_request_url(e)), logger.WARNING)
         return
     except requests.exceptions.ConnectionError as e:
-        logger.log(u'Internet connection error msg:%s while loading URL %s' % (str(e.message), url), logger.WARNING)
+        if not mute_connect_err:
+            logger.log(u'Connection error msg:%s while loading URL%s' % (
+                e.message, _maybe_request_url(e)), logger.WARNING)
         return
     except requests.exceptions.ReadTimeout as e:
-        logger.log(u'Read timed out msg:%s while loading URL %s' % (str(e.message), url), logger.WARNING)
+        logger.log(u'Read timed out msg:%s while loading URL%s' % (
+            e.message, _maybe_request_url(e)), logger.WARNING)
         return
     except (requests.exceptions.Timeout, socket.timeout) as e:
-        logger.log(u'Connection timed out msg:%s while loading URL %s' % (str(e.message), url), logger.WARNING)
+        logger.log(u'Connection timed out msg:%s while loading URL %s' % (
+            e.message, _maybe_request_url(e, url)), logger.WARNING)
         return
     except Exception as e:
         if e.message:
-            logger.log(u'Exception caught while loading URL %s\r\nDetail... %s\r\n%s' % (url, str(e.message), traceback.format_exc()), logger.WARNING)
+            logger.log(u'Exception caught while loading URL %s\r\nDetail... %s\r\n%s'
+                       % (url, e.message, traceback.format_exc()), logger.WARNING)
         else:
-            logger.log(u'Unknown exception while loading URL %s\r\nDetail... %s' % (url, traceback.format_exc()), logger.WARNING)
+            logger.log(u'Unknown exception while loading URL %s\r\nDetail... %s'
+                       % (url, traceback.format_exc()), logger.WARNING)
         return
 
     if json:
-        return resp.json()
+        try:
+            return resp.json()
+        except (TypeError, Exception) as e:
+            logger.log(u'JSON data issue from URL %s\r\nDetail... %s' % (url, e.message), logger.WARNING)
+            return None
 
     return resp.content
+
+
+def _maybe_request_url(e, def_url=''):
+    return hasattr(e, 'request') and hasattr(e.request, 'url') and ' ' + e.request.url or def_url
 
 
 def download_file(url, filename, session=None):
@@ -1445,3 +1473,8 @@ def make_search_segment_html_string(segment, max_eps=5):
 
 def has_anime():
     return False if not sickbeard.showList else any(filter(lambda show: show.is_anime, sickbeard.showList))
+
+
+def cpu_sleep():
+    if cpu_presets[sickbeard.CPU_PRESET]:
+        time.sleep(cpu_presets[sickbeard.CPU_PRESET])

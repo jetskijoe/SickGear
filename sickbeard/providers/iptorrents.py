@@ -19,7 +19,7 @@ import re
 import traceback
 
 from . import generic
-from sickbeard import logger, tvcache
+from sickbeard import logger
 from sickbeard.bs4_parser import BS4Parser
 from lib.unidecode import unidecode
 
@@ -29,24 +29,29 @@ class IPTorrentsProvider(generic.TorrentProvider):
     def __init__(self):
         generic.TorrentProvider.__init__(self, 'IPTorrents')
 
-        self.url_base = 'https://iptorrents.eu/'
-        self.urls = {'config_provider_home_uri': self.url_base,
-                     'login': self.url_base + 'torrents/',
-                     'search': self.url_base + 't?%s;q=%s;qf=ti%s%s#torrents',
-                     'get': self.url_base + '%s'}
+        self.url_home = (['https://iptorrents.%s/' % u for u in 'eu', 'com', 'me', 'ru'] +
+                         ['http://11111.workisboring.com/'])
 
-        self.categories = {'shows': [4, 5, 22, 23, 24, 25, 26, 55, 65, 66, 73, 78, 79], 'anime': [60]}
+        self.url_vars = {'login': 'getrss.php', 'search': 't?%s;q=%s;qf=ti%s%s#torrents', 'get': '%s'}
+        self.url_tmpl = {'config_provider_home_uri': '%(home)s', 'login': '%(home)s%(vars)s',
+                         'search': '%(home)s%(vars)s', 'get': '%(home)s%(vars)s'}
+
+        self.categories = {'shows': [4, 5, 22, 23, 24, 25, 26, 55, 65, 66, 78, 79, 99], 'anime': [60]}
 
         self.proper_search_terms = None
-        self.url = self.urls['config_provider_home_uri']
 
-        self.username, self.password, self.minseed, self.minleech = 4 * [None]
-        self.freeleech = False
-        self.cache = IPTorrentsCache(self)
+        self.digest, self.freeleech, self.minseed, self.minleech = 4 * [None]
 
     def _authorised(self, **kwargs):
 
-        return super(IPTorrentsProvider, self)._authorised(post_params={'php': ''})
+        return super(IPTorrentsProvider, self)._authorised(
+            logged_in=(lambda x='': ('RSS Link' in x) and self.has_all_cookies() and
+                       self.session.cookies['uid'] in self.digest and self.session.cookies['pass'] in self.digest),
+            failed_msg=(lambda x=None: u'Invalid cookie details for %s. Check settings'))
+
+    @staticmethod
+    def _has_signature(data=None):
+        return generic.TorrentProvider._has_signature(data) or (data and re.search(r'(?i)<title[^<]+?ipt', data))
 
     def _search_provider(self, search_params, **kwargs):
 
@@ -61,8 +66,9 @@ class IPTorrentsProvider(generic.TorrentProvider):
             for search_string in search_params[mode]:
                 search_string = isinstance(search_string, unicode) and unidecode(search_string) or search_string
                 # URL with 50 tv-show results, or max 150 if adjusted in IPTorrents profile
-                search_url = self.urls['search'] % (self._categories_string(mode, '%s', ';'), search_string,
-                                                    ('', ';free')[self.freeleech], (';o=seeders', '')['Cache' == mode])
+                search_url = self.urls['search'] % (
+                    self._categories_string(mode, '%s', ';'), search_string,
+                    (';free', '')[not self.freeleech], (';o=seeders', '')['Cache' == mode])
 
                 html = self.get_url(search_url)
 
@@ -72,7 +78,8 @@ class IPTorrentsProvider(generic.TorrentProvider):
                         raise generic.HaltParseException
 
                     with BS4Parser(html, features=['html5lib', 'permissive']) as soup:
-                        torrent_table = soup.find('table', attrs={'class': 'torrents'})
+                        torrent_table = soup.find('table', attrs={'id': 'torrents'}) or \
+                            soup.find('table', attrs={'class': 'torrents'})
                         torrent_rows = [] if not torrent_table else torrent_table.find_all('tr')
 
                         if 2 > len(torrent_rows):
@@ -108,15 +115,9 @@ class IPTorrentsProvider(generic.TorrentProvider):
 
         return results
 
-
-class IPTorrentsCache(tvcache.TVCache):
-
-    def __init__(self, this_provider):
-        tvcache.TVCache.__init__(self, this_provider)
-
-    def _cache_data(self):
-
-        return self.provider.cache_data()
+    @staticmethod
+    def ui_string(key):
+        return 'iptorrents_digest' == key and 'use... \'uid=xx; pass=yy\'' or ''
 
 
 provider = IPTorrentsProvider()
