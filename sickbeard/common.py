@@ -86,9 +86,9 @@ multiEpStrings = {NAMING_REPEAT: 'Repeat',
 
 class Quality:
     NONE = 0  # 0
-    SDTV = 1  # 1
-    HDWEBDL = 1 << 1  # 32
-    HDTV = 1 << 2  # 4
+    HDWEBDL = 1  # 32
+    HDTV = 1 << 1  # 4
+    SDTV = 1 << 2  # 1
     SDDVD = 1 << 3  # 2
     RAWHDTV = 1 << 4  # 8  -- 720p/1080i mpeg2 (trollhd releases)
     FULLHDTV = 1 << 5  # 16 -- 1080p HDTV (QCF releases)
