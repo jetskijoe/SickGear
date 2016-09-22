@@ -795,13 +795,13 @@ class PostProcessor(object):
 
             elif PostProcessor.EXISTS_LARGER == existing_file_status:
                 # File exists and new file is smaller, marking it unsafe to replace
-                self._log(u'.. marking it unsafe to replace the existing larger file', logger.DEBUG)
-                return False
+                self._log(u'.. marking it safe to replace the existing larger file', logger.DEBUG)
+                return True
 
             elif PostProcessor.EXISTS_SAME == existing_file_status:
                 # File exists and new file is same size, marking it unsafe to replace
                 self._log(u'.. marking it unsafe to replace the existing same size file', logger.DEBUG)
-                return False
+                return True
 
             else:
                 self._log(u'Unknown file status for: %s This should never happen, please log this as a bug.' % ep_obj.location, logger.ERROR)
