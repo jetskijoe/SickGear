@@ -482,7 +482,8 @@ class MainHandler(WebHandler):
         sql_results = list(set(sql_results))
 
         # make a dict out of the sql results
-        sql_results = [dict(row) for row in sql_results]
+        sql_results = [dict(row) for row in sql_results
+                       if Quality.splitCompositeStatus(helpers.tryInt(row['status']))[0] not in qualities]
 
         # multi dimension sort
         sorts = {
@@ -2368,11 +2369,11 @@ class NewHomeAddShows(Home):
                     logger.log('Fetching show using id: %s (%s) from tv datasource %s' % (
                         search_id, search_term, sickbeard.indexerApi(indexer).name), logger.DEBUG)
                     results.setdefault('tt' in search_id and 3 or indexer, []).extend(
-                        [{'id': indexer_id, 'seriesname': t[indexer_id]['seriesname'],
-                          'firstaired': t[indexer_id]['firstaired'], 'network': t[indexer_id]['network'],
-                          'overview': t[indexer_id]['overview'],
-                          'genres': '' if not t[indexer_id]['genre'] else
-                            t[indexer_id]['genre'].lower().strip('|').replace('|', ', '),
+                        [{'id': indexer_id, 'seriesname': t[indexer_id, False]['seriesname'],
+                          'firstaired': t[indexer_id, False]['firstaired'], 'network': t[indexer_id, False]['network'],
+                          'overview': t[indexer_id, False]['overview'],
+                          'genres': '' if not t[indexer_id, False]['genre'] else
+                            t[indexer_id, False]['genre'].lower().strip('|').replace('|', ', '),
                           }])
                     break
                 else:
@@ -3392,13 +3393,15 @@ class Manage(MainHandler):
 
         result = {}
         for cur_result in cur_show_results:
+            if not sickbeard.SEARCH_UNAIRED and 1000 > cur_result['airdate']:
+                continue
             cur_season = int(cur_result['season'])
             cur_episode = int(cur_result['episode'])
 
             if cur_season not in result:
                 result[cur_season] = {}
 
-            result[cur_season][cur_episode] = {'name': cur_result['name'], 'airdate_never': (True, False)[1000 < int(cur_result['airdate'])]}
+            result[cur_season][cur_episode] = {'name': cur_result['name'], 'airdate_never': 1000 > int(cur_result['airdate'])}
 
         return json.dumps(result)
 
@@ -3438,6 +3441,8 @@ class Manage(MainHandler):
         show_names = {}
         sorted_show_ids = []
         for cur_status_result in status_results:
+            if not sickbeard.SEARCH_UNAIRED and 1000 > cur_status_result['airdate']:
+                continue
             cur_indexer_id = int(cur_status_result['indexer_id'])
             if cur_indexer_id not in ep_counts:
                 ep_counts[cur_indexer_id] = 1
@@ -3640,6 +3645,8 @@ class Manage(MainHandler):
                 [curShow.indexerid])
 
             for curResult in sqlResults:
+                if not sickbeard.SEARCH_UNAIRED and 1 == curResult['airdate']:
+                    continue
                 curEpCat = curShow.getOverview(int(curResult['status']))
                 if curEpCat:
                     epCats[str(curResult['season']) + 'x' + str(curResult['episode'])] = curEpCat
@@ -4305,7 +4312,7 @@ class ConfigGeneral(Config):
         return m.hexdigest()
 
     def saveGeneral(self, log_dir=None, web_port=None, web_log=None, encryption_version=None, web_ipv6=None,
-                    update_shows_on_start=None, show_update_hour=None, allow_incomplete_showdata=None,
+                    update_shows_on_start=None, show_update_hour=None,
                     trash_remove_show=None, trash_rotate_logs=None, update_frequency=None, launch_browser=None, web_username=None,
                     use_api=None, api_key=None, indexer_default=None, timezone_display=None, cpu_preset=None, file_logging_preset=None,
                     web_password=None, version_notify=None, enable_https=None, https_cert=None, https_key=None,
@@ -4327,7 +4334,6 @@ class ConfigGeneral(Config):
 
         sickbeard.UPDATE_SHOWS_ON_START = config.checkbox_to_value(update_shows_on_start)
         sickbeard.SHOW_UPDATE_HOUR = config.minimax(show_update_hour, 3, 0, 23)
-        sickbeard.ALLOW_INCOMPLETE_SHOWDATA = config.checkbox_to_value(allow_incomplete_showdata)
         sickbeard.TRASH_REMOVE_SHOW = config.checkbox_to_value(trash_remove_show)
         sickbeard.TRASH_ROTATE_LOGS = config.checkbox_to_value(trash_rotate_logs)
         config.change_UPDATE_FREQUENCY(update_frequency)
@@ -4494,7 +4500,9 @@ class ConfigSearch(Config):
 
         config.change_RECENTSEARCH_FREQUENCY(recentsearch_frequency)
 
+        old_backlog_frequency = sickbeard.BACKLOG_FREQUENCY
         config.change_BACKLOG_FREQUENCY(backlog_frequency)
+        sickbeard.search_backlog.BacklogSearcher.change_backlog_parts(old_backlog_frequency, sickbeard.BACKLOG_FREQUENCY)
         sickbeard.BACKLOG_DAYS = config.to_int(backlog_days, default=7)
 
         sickbeard.USE_NZBS = config.checkbox_to_value(use_nzbs)
@@ -4863,7 +4871,7 @@ class ConfigProviders(Config):
         tempProvider = rsstorrent.TorrentRssProvider(name, url, cookies)
 
         if tempProvider.get_id() in providerDict:
-            return json.dumps({'error': 'Exists as ' + providerDict[tempProvider.get_id()].name})
+            return json.dumps({'error': 'A provider exists as [%s]' % providerDict[tempProvider.get_id()].name})
         else:
             (succ, errMsg) = tempProvider.validate_feed()
             if succ:
@@ -5033,14 +5041,15 @@ class ConfigProviders(Config):
                     setattr(torrent_src, attr, key)
 
             attr = 'ratio'
-            if hasattr(torrent_src, '_seed_' + attr):
+            if hasattr(torrent_src, '_seed_' + attr) and src_id_prefix + attr in kwargs:
                 setattr(torrent_src, '_seed_' + attr, kwargs.get(src_id_prefix + attr, '').strip() or None)
 
             for attr in [x for x in ['minseed', 'minleech'] if hasattr(torrent_src, x)]:
                 setattr(torrent_src, attr, config.to_int(str(kwargs.get(src_id_prefix + attr)).strip()))
 
             for attr in [x for x in ['confirmed', 'freeleech', 'reject_m2ts', 'enable_recentsearch',
-                                     'enable_backlog', 'search_fallback'] if hasattr(torrent_src, x)]:
+                                     'enable_backlog', 'search_fallback']
+                         if hasattr(torrent_src, x) and src_id_prefix + attr in kwargs]:
                 setattr(torrent_src, attr, config.checkbox_to_value(kwargs.get(src_id_prefix + attr)))
 
             attr = 'seed_time'

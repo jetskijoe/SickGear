@@ -93,6 +93,7 @@
 * Add Extratorrent provider
 * Add Limetorrents provider
 * Add nCore torrent provider
+* Add TorLock provider
 * Add Torrentz2 provider
 * Remove Usenet-Crawler provider
 * Change CPU throttling on General Config/Advanced to "Disabled" by default for new installs
@@ -158,6 +159,14 @@
 * Change show loaded log message at start up and include info source
 * Change if episode has no airdate then set status to unaired (was skipped)
 * Fix only replace initial quality releases from the upgrade to list
+* Change optimise TheTVDB processes, 40% to 66% saved adding new and existing shows, 40% to 50% saved per show update
+* Change improve shows with more episodes gain largest reductions in time spent processing
+* Change when using "Add new show" reduce search time outs
+* Change always allow incomplete show data
+* Remove redundant config/general/"Allow incomplete show data"
+* Fix status reset of a snatched, downloaded, or archived episode when its date is set to never (no date) on the info
+  source and there is no media file
+* Change only show unaired episodes on Manage/Backlog Overview and Manage/Episode Status Management where relevant
 
 [develop changelog]
 * Change send nzb data to NZBGet for Anizb instead of url
@@ -170,6 +179,7 @@
 * Change handle when a torrent provider goes down and its urls are cleared
 * Add handler for when rar files can not be opened during post processing
 * Fix join clean up
+* Fix add custom torrent RSS
 
 
 ### 0.11.15 (2016-09-13 19:50:00 UTC)

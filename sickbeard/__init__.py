@@ -89,7 +89,6 @@ background_mapping_task = None
 showList = None
 UPDATE_SHOWS_ON_START = False
 SHOW_UPDATE_HOUR = 3
-ALLOW_INCOMPLETE_SHOWDATA = False
 
 providerList = []
 newznabProviderList = []
@@ -514,7 +513,7 @@ def initialize(consoleLogging=True):
             PLEX_UPDATE_LIBRARY, PLEX_SERVER_HOST, PLEX_HOST, PLEX_USERNAME, PLEX_PASSWORD, \
             USE_TRAKT, TRAKT_CONNECTED_ACCOUNT, TRAKT_ACCOUNTS, TRAKT_MRU, TRAKT_VERIFY, TRAKT_REMOVE_WATCHLIST, TRAKT_TIMEOUT, TRAKT_USE_WATCHLIST, TRAKT_METHOD_ADD, TRAKT_START_PAUSED, traktCheckerScheduler, TRAKT_SYNC, TRAKT_DEFAULT_INDEXER, TRAKT_REMOVE_SERIESLIST, TRAKT_UPDATE_COLLECTION, \
             BACKLOG_FREQUENCY, DEFAULT_BACKLOG_FREQUENCY, MIN_BACKLOG_FREQUENCY, MAX_BACKLOG_FREQUENCY, BACKLOG_STARTUP, SKIP_REMOVED_FILES, \
-            showUpdateScheduler, __INITIALIZED__, LAUNCH_BROWSER, TRASH_REMOVE_SHOW, TRASH_ROTATE_LOGS, HOME_SEARCH_FOCUS, SORT_ARTICLE, showList, loadingShowList, UPDATE_SHOWS_ON_START, SHOW_UPDATE_HOUR, ALLOW_INCOMPLETE_SHOWDATA, \
+            showUpdateScheduler, __INITIALIZED__, LAUNCH_BROWSER, TRASH_REMOVE_SHOW, TRASH_ROTATE_LOGS, HOME_SEARCH_FOCUS, SORT_ARTICLE, showList, loadingShowList, UPDATE_SHOWS_ON_START, SHOW_UPDATE_HOUR, \
             NEWZNAB_DATA, INDEXER_DEFAULT, INDEXER_TIMEOUT, USENET_RETENTION, TORRENT_DIR, \
             QUALITY_DEFAULT, FLATTEN_FOLDERS_DEFAULT, SUBTITLES_DEFAULT, STATUS_DEFAULT, WANTED_BEGIN_DEFAULT, WANTED_LATEST_DEFAULT, RECENTSEARCH_STARTUP, \
             GROWL_NOTIFY_ONSNATCH, GROWL_NOTIFY_ONDOWNLOAD, GROWL_NOTIFY_ONSUBTITLEDOWNLOAD, TWITTER_NOTIFY_ONSNATCH, TWITTER_NOTIFY_ONDOWNLOAD, TWITTER_NOTIFY_ONSUBTITLEDOWNLOAD, \
@@ -666,7 +665,6 @@ def initialize(consoleLogging=True):
         UPDATE_SHOWS_ON_START = bool(check_setting_int(CFG, 'General', 'update_shows_on_start', 0))
         SHOW_UPDATE_HOUR = check_setting_int(CFG, 'General', 'show_update_hour', 3)
         SHOW_UPDATE_HOUR = minimax(SHOW_UPDATE_HOUR, 3, 0, 23)
-        ALLOW_INCOMPLETE_SHOWDATA = bool(check_setting_int(CFG, 'General', 'allow_incomplete_showdata', 0))
 
         TRASH_REMOVE_SHOW = bool(check_setting_int(CFG, 'General', 'trash_remove_show', 0))
         TRASH_ROTATE_LOGS = bool(check_setting_int(CFG, 'General', 'trash_rotate_logs', 0))
@@ -1074,7 +1072,8 @@ def initialize(consoleLogging=True):
                 torrent_prov.reject_m2ts = bool(check_setting_int(CFG, prov_id_uc, prov_id + '_reject_m2ts', 0))
             if hasattr(torrent_prov, 'enable_recentsearch'):
                 torrent_prov.enable_recentsearch = bool(check_setting_int(CFG, prov_id_uc,
-                                                                          prov_id + '_enable_recentsearch', 1))
+                                                                          prov_id + '_enable_recentsearch', 1)) or \
+                                                   not getattr(torrent_prov, 'supports_backlog', True)
             if hasattr(torrent_prov, 'enable_backlog'):
                 torrent_prov.enable_backlog = bool(check_setting_int(CFG, prov_id_uc, prov_id + '_enable_backlog', 1))
             if hasattr(torrent_prov, 'search_mode'):
@@ -1524,7 +1523,6 @@ def save_config():
     new_config['General']['launch_browser'] = int(LAUNCH_BROWSER)
     new_config['General']['update_shows_on_start'] = int(UPDATE_SHOWS_ON_START)
     new_config['General']['show_update_hour'] = int(SHOW_UPDATE_HOUR)
-    new_config['General']['allow_incomplete_showdata'] = int(ALLOW_INCOMPLETE_SHOWDATA)
     new_config['General']['trash_remove_show'] = int(TRASH_REMOVE_SHOW)
     new_config['General']['trash_rotate_logs'] = int(TRASH_ROTATE_LOGS)
     new_config['General']['home_search_focus'] = int(HOME_SEARCH_FOCUS)
