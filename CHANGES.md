@@ -3,7 +3,7 @@
 * Add strict Python version check (equal to, or higher than 2.7.9 and less than 3.0), **exit** if incorrect version
 * Update unidecode library 0.04.11 to 0.04.18 (fd57cbf)
 * Update xmltodict library 0.9.2 (579a005) to 0.9.2 (eac0031)
-* Update Tornado Web Server 4.3.dev1 (1b6157d) to 4.4.dev1 (c2b4d05)
+* Update Tornado Web Server 4.3.dev1 (1b6157d) to 4.5.dev1 (92f29b8)
 * Update change to suppress reporting of Tornado exception error 1 to updated package (ref:hacks.txt)
 * Change API response header for JSON content type and the return of JSONP data
 * Remove redundant MultipartPostHandler
@@ -87,14 +87,18 @@
 * Add DigitalHive torrent provider
 * Add RevTT torrent provider
 * Add PTF torrent provider
-* Add ILT torrent provider
 * Add Fano torrent provider
 * Add BTScene torrent provider
 * Add Extratorrent provider
 * Add Limetorrents provider
+* Add HD-Torrents provider
 * Add nCore torrent provider
 * Add TorLock provider
 * Add Torrentz2 provider
+* Add freeleech options to fano, freshon, hdspace, phd, ptf providers
+* Change SceneTime to cookie auth
+* Change improve parser tolerance for torrent providers
+* Change disable TorrentBytes provider, over 90s for a response is not good
 * Remove Usenet-Crawler provider
 * Change CPU throttling on General Config/Advanced to "Disabled" by default for new installs
 * Change provider OMGWTFNZBS api url and auto reject nuked releases
@@ -167,6 +171,13 @@
 * Fix status reset of a snatched, downloaded, or archived episode when its date is set to never (no date) on the info
   source and there is no media file
 * Change only show unaired episodes on Manage/Backlog Overview and Manage/Episode Status Management where relevant
+* Change locally cache "Add from Trakt" show posters, first run takes more time but is faster thereafter
+* Change allow pp to replace files with a repack or proper of same quality
+* Fix ensure downloaded eps are not shown on episode view
+* Fix allow propers to pp when show marked upgrade once
+* Fix never set episodes without airdate to wanted
+* Change improve getting the local timezone information
+* Change hachoir_parser to close input stream if no parser is found e.g. due to file corruption
 
 [develop changelog]
 * Change send nzb data to NZBGet for Anizb instead of url
@@ -180,6 +191,10 @@
 * Add handler for when rar files can not be opened during post processing
 * Fix join clean up
 * Fix add custom torrent RSS
+* Remove ILT torrent provider
+* Update Tornado Web Server 4.3.dev1 (1b6157d) to 4.4.dev1 (c2b4d05)
+* Change add support for freebsd /var/db/zoneinfo when getting local timezone information
+* Fix issue with post processing propers/repacks
 
 
 ### 0.11.15 (2016-09-13 19:50:00 UTC)

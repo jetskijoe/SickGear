@@ -43,7 +43,7 @@ from sickbeard import config, sab, nzbget, clients, history, notifiers, processT
 from sickbeard import encodingKludge as ek
 from sickbeard.providers import newznab, rsstorrent
 from sickbeard.common import Quality, Overview, statusStrings, qualityPresetStrings
-from sickbeard.common import SNATCHED, UNAIRED, IGNORED, ARCHIVED, WANTED, FAILED, SKIPPED
+from sickbeard.common import SNATCHED, UNAIRED, IGNORED, ARCHIVED, WANTED, FAILED, SKIPPED, DOWNLOADED, SNATCHED_BEST, SNATCHED_PROPER
 from sickbeard.common import SD, HD720p, HD1080p
 from sickbeard.exceptions import ex
 from sickbeard.helpers import remove_article, starify
@@ -483,7 +483,8 @@ class MainHandler(WebHandler):
 
         # make a dict out of the sql results
         sql_results = [dict(row) for row in sql_results
-                       if Quality.splitCompositeStatus(helpers.tryInt(row['status']))[0] not in qualities]
+                       if Quality.splitCompositeStatus(helpers.tryInt(row['status']))[0] not in
+                       [DOWNLOADED, SNATCHED, SNATCHED_PROPER, SNATCHED_BEST, ARCHIVED, IGNORED]]
 
         # multi dimension sort
         sorts = {
@@ -1877,7 +1878,7 @@ class Home(MainHandler):
                         continue
 
                     if int(
-                            status) in Quality.DOWNLOADED and epObj.status not in Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.DOWNLOADED + [
+                            status) in Quality.DOWNLOADED and epObj.status not in Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.SNATCHED_BEST + Quality.DOWNLOADED + [
                         IGNORED, SKIPPED] and not ek.ek(os.path.isfile, epObj.location):
                         logger.log(
                             u'Refusing to change status of ' + curEp + " to DOWNLOADED because it's not SNATCHED/DOWNLOADED",
@@ -1885,7 +1886,7 @@ class Home(MainHandler):
                         continue
 
                     if int(
-                            status) == FAILED and epObj.status not in Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.DOWNLOADED:
+                            status) == FAILED and epObj.status not in Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.SNATCHED_BEST + Quality.DOWNLOADED:
                         logger.log(
                             u'Refusing to change status of ' + curEp + " to FAILED because it's not SNATCHED/DOWNLOADED",
                             logger.ERROR)
@@ -3063,6 +3064,18 @@ class NewHomeAddShows(Home):
                 if dt_ordinal > newest_dt:
                     newest_dt = dt_ordinal
                     newest = dt_string
+
+                img_uri = item.get('show', {}).get('images', {}).get('poster', {}).get('thumb', {}) or ''
+                if img_uri:
+                    path = ek.ek(os.path.abspath, ek.ek(
+                        os.path.join, sickbeard.CACHE_DIR, 'images', 'trakt', 'poster', 'thumb'))
+                    helpers.make_dirs(path)
+                    file_name = ek.ek(os.path.basename, img_uri)
+                    cached_name = ek.ek(os.path.join, path, file_name)
+                    if not ek.ek(os.path.isfile, cached_name):
+                        helpers.download_file(img_uri, cached_name)
+                    images = dict(poster=dict(thumb='cache/images/trakt/poster/thumb/%s' % file_name))
+
                 filtered.append(dict(
                     premiered=dt_ordinal,
                     premiered_str=dt_string,
@@ -3074,7 +3087,7 @@ class NewHomeAddShows(Home):
                     genres=('' if 'genres' not in item['show'] else
                             ', '.join(['%s' % v for v in item['show']['genres']])),
                     ids=item['show']['ids'],
-                    images='' if 'images' not in item['show'] else item['show']['images'],
+                    images='' if not img_uri else images,
                     overview=('' if 'overview' not in item['show'] or None is item['show']['overview'] else
                               self.encode_html(item['show']['overview'][:250:].strip())),
                     rating=0 < item['show'].get('rating', 0) and
@@ -5059,6 +5072,12 @@ class ConfigProviders(Config):
             attr = 'search_mode'
             if hasattr(torrent_src, attr):
                 setattr(torrent_src, attr, str(kwargs.get(src_id_prefix + attr, '')).strip() or 'eponly')
+
+            attr = 'filter'
+            if hasattr(torrent_src, attr):
+                setattr(torrent_src, attr,
+                        [k for k in torrent_src.may_filter.keys()
+                         if config.checkbox_to_value(kwargs.get('%sfilter_%s' % (src_id_prefix, k)))])
 
         # update nzb source settings
         for nzb_src in [src for src in sickbeard.providers.sortedProviderList() if

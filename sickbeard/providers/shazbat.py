@@ -51,8 +51,7 @@ class ShazbatProvider(generic.TorrentProvider):
 
         return super(ShazbatProvider, self)._authorised(
             logged_in=(lambda y=None: '<input type="password"' not in helpers.getURL(
-                self.urls['feeds'], session=self.session)),
-            post_params={'tv_login': self.username, 'tv_password': self.password, 'form_tmpl': True})
+                self.urls['feeds'], session=self.session)), post_params={'tv_login': self.username, 'form_tmpl': True})
 
     def _search_provider(self, search_params, **kwargs):
 
@@ -100,17 +99,20 @@ class ShazbatProvider(generic.TorrentProvider):
                             raise generic.HaltParseException
 
                         for tr in torrent_rows[0:]:
+                            cells = tr.find_all('td')
+                            if 4 > len(cells):
+                                continue
                             try:
-                                stats = tr.find_all('td')[3].get_text().strip()
+                                stats = cells[3].get_text().strip()
                                 seeders, leechers = [(tryInt(x[0], 0), tryInt(x[1], 0)) for x in
                                                      re.findall('(?::(\d+))(?:\W*[/]\W*:(\d+))?', stats) if x[0]][0]
                                 if self._peers_fail(mode, seeders, leechers):
                                     continue
                                 sizes = [(tryInt(x[0], x[0]), tryInt(x[1], False)) for x in
-                                         re.findall('([\d\.]+\w+)?(?:\s*[\(\[](\d+)[\)\]])?', stats) if x[0]][0]
+                                         re.findall('([\d.]+\w+)?(?:\s*[(\[](\d+)[)\]])?', stats) if x[0]][0]
                                 size = sizes[(0, 1)[1 < len(sizes)]]
 
-                                for element in [x for x in tr.find_all('td')[2].contents[::-1] if unicode(x).strip()]:
+                                for element in [x for x in cells[2].contents[::-1] if unicode(x).strip()]:
                                     if 'NavigableString' in str(element.__class__):
                                         title = unicode(element).strip()
                                         break
