@@ -33,6 +33,7 @@ import time
 import traceback
 import urlparse
 import uuid
+import subprocess
 
 import adba
 import requests
@@ -56,6 +57,7 @@ from sickbeard.common import USER_AGENT, mediaExtensions, subtitleExtensions, cp
 from sickbeard import encodingKludge as ek
 
 from lib.cachecontrol import CacheControl, caches
+from lib.scandir.scandir import scandir
 from itertools import izip, cycle
 
 
@@ -139,6 +141,15 @@ def has_media_ext(filename):
 
     sep_file = filename.rpartition('.')
     return (None is re.search('extras?$', sep_file[0], re.I)) and (sep_file[2].lower() in mediaExtensions)
+
+
+def has_image_ext(filename):
+    try:
+        if ek.ek(os.path.splitext, filename)[1].lower() in ['.bmp', '.gif', '.jpeg', '.jpg', '.png', '.webp']:
+            return True
+    except (StandardError, Exception):
+        pass
+    return False
 
 
 def is_first_rar_volume(filename):
@@ -285,7 +296,11 @@ def listMediaFiles(path):
 
 
 def copyFile(srcFile, destFile):
-    ek.ek(shutil.copyfile, srcFile, destFile)
+    if os.name.startswith('posix'):
+        subprocess.call(['cp', srcFile, destFile])
+    else:
+        ek.ek(shutil.copyfile, srcFile, destFile)
+
     try:
         ek.ek(shutil.copymode, srcFile, destFile)
     except OSError:
@@ -1455,3 +1470,55 @@ def cpu_sleep():
         time.sleep(cpu_presets[sickbeard.CPU_PRESET])
 
 
+def scantree(path):
+    """Recursively yield DirEntry objects for given directory."""
+    for entry in ek.ek(scandir, path):
+        if entry.is_dir(follow_symlinks=False):
+            for entry in scantree(entry.path):
+                yield entry
+        else:
+            yield entry
+
+
+def cleanup_cache():
+    """
+    Delete old cached files
+    """
+    delete_not_changed_in([ek.ek(os.path.join, sickbeard.CACHE_DIR, *x) for x in [
+        ('images', 'trakt'), ('images', 'imdb'), ('images', 'anidb')]])
+
+
+def delete_not_changed_in(paths, days=30, minutes=0):
+    """
+    Delete files under paths not changed in n days and/or n minutes.
+    If a file was modified later than days/and or minutes, then don't delete it.
+
+    :param paths: List of paths to scan for files to delete
+    :param days: Purge files not modified in this number of days (default: 30 days)
+    :param minutes: Purge files not modified in this number of minutes (default: 0 minutes)
+    :return: tuple; number of files that qualify for deletion, number of qualifying files that failed to be deleted
+    """
+    del_time = time.mktime((datetime.datetime.now() - datetime.timedelta(days=days, minutes=minutes)).timetuple())
+    errors = 0
+    qualified = 0
+    for c in paths:
+        try:
+            for f in scantree(c):
+                if f.is_file(follow_symlinks=False) and del_time > f.stat(follow_symlinks=False).st_mtime:
+                    try:
+                        ek.ek(os.remove, f.path)
+                    except (StandardError, Exception):
+                        errors += 1
+                    qualified += 1
+        except (StandardError, Exception):
+                        pass
+    return qualified, errors
+
+
+def set_file_timestamp(filename, min_age=3, new_time=None):
+    min_time = time.mktime((datetime.datetime.now() - datetime.timedelta(days=min_age)).timetuple())
+    try:
+        if ek.ek(os.path.isfile, filename) and ek.ek(os.path.getmtime, filename) < min_time:
+            ek.ek(os.utime, filename, new_time)
+    except (StandardError, Exception):
+        pass

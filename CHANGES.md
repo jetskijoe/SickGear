@@ -38,6 +38,7 @@
 * Change indicate when not sorting with article by dimming ("The", "A", "An") on Show List, Episode, History,
   Mass Update, Add with Browse and from Existing views
 * Add Emby notifier to config/Notifications
+* Use a subprocess and cp for copying files on posix systems to preserve file metadata
 * Fix alternative unicode show names from breaking search
 * Change show update, set shows with newly added airdate or existing episodes with future or never dates, to "Wanted"
 * Fix rare NameParser case where numeric episode name was parsed as episode number
@@ -171,7 +172,7 @@
 * Fix status reset of a snatched, downloaded, or archived episode when its date is set to never (no date) on the info
   source and there is no media file
 * Change only show unaired episodes on Manage/Backlog Overview and Manage/Episode Status Management where relevant
-* Change locally cache "Add from Trakt" show posters, first run takes more time but is faster thereafter
+* Change locally cache Trakt/IMDb/Anime show cards
 * Change allow pp to replace files with a repack or proper of same quality
 * Fix ensure downloaded eps are not shown on episode view
 * Fix allow propers to pp when show marked upgrade once
@@ -195,6 +196,16 @@
 * Update Tornado Web Server 4.3.dev1 (1b6157d) to 4.4.dev1 (c2b4d05)
 * Change add support for freebsd /var/db/zoneinfo when getting local timezone information
 * Fix issue with post processing propers/repacks
+* Change use legacy tzlocal() if new gettz fails to create
+* Change load cached images on demand
+* Change add rate limit handler for info source
+* Change improve security of cached image use
+* Change add helper function to validate acceptable image file extension
+
+
+### 0.11.16 (2016-10-16 17:30:00 UTC)
+
+* Change ensure a cache.db table does exist on migration
 
 
 ### 0.11.15 (2016-09-13 19:50:00 UTC)

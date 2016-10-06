@@ -46,7 +46,7 @@ from sickbeard.common import Quality, Overview, statusStrings, qualityPresetStri
 from sickbeard.common import SNATCHED, UNAIRED, IGNORED, ARCHIVED, WANTED, FAILED, SKIPPED, DOWNLOADED, SNATCHED_BEST, SNATCHED_PROPER
 from sickbeard.common import SD, HD720p, HD1080p
 from sickbeard.exceptions import ex
-from sickbeard.helpers import remove_article, starify
+from sickbeard.helpers import has_image_ext, remove_article, starify
 from sickbeard.indexers.indexer_config import INDEXER_TVDB, INDEXER_TVRAGE
 from sickbeard.scene_numbering import get_scene_numbering, set_scene_numbering, get_scene_numbering_for_show, \
     get_xem_numbering_for_show, get_scene_absolute_numbering_for_show, get_xem_absolute_numbering_for_show, \
@@ -298,6 +298,7 @@ class WebHandler(BaseHandler):
         self.lock = threading.Lock()
 
     def page_not_found(self):
+        self.set_status(404)
         t = PageTemplate(headers=self.request.headers, file='404.tmpl')
         return t.respond()
 
@@ -2655,13 +2656,8 @@ class NewHomeAddShows(Home):
                             newest = dt_string
 
                         img_uri = 'http://img7.anidb.net/pics/anime/%s' % image
-                        path = ek.ek(os.path.abspath, ek.ek(os.path.join, sickbeard.CACHE_DIR, 'images', 'anidb'))
-                        helpers.make_dirs(path)
-                        file_name = ek.ek(os.path.basename, img_uri)
-                        cached_name = ek.ek(os.path.join, path, file_name)
-                        if not ek.ek(os.path.isfile, cached_name):
-                            helpers.download_file(img_uri, cached_name)
-                        images = dict(poster=dict(thumb='cache/images/anidb/%s' % file_name))
+                        images = dict(poster=dict(thumb='imagecache?path=anidb&source=%s' % img_uri))
+                        sickbeard.CACHE_IMAGE_URL_LIST.add_url(img_uri)
 
                         votes = rating = 0
                         counts = anime.find('./ratings/permanent')
@@ -2813,6 +2809,7 @@ class NewHomeAddShows(Home):
                     rating = None is not rating and rating.get('content') or ''
                     voting = row.find('meta', attrs={'itemprop': 'ratingCount'})
                     voting = None is not voting and voting.get('content') or ''
+                    img_uri = None
                     if len(img):
                         img_uri = img[0].get('loadlate')
                         match = img_size.search(img_uri)
@@ -2826,13 +2823,8 @@ class NewHomeAddShows(Home):
                                      match.group(12)]
                             img_uri = img_uri.replace(match.group(), ''.join(
                                 [str(y) for x in map(None, parts, scaled) for y in x if y is not None]))
-                            path = ek.ek(os.path.abspath, ek.ek(os.path.join, sickbeard.CACHE_DIR, 'images', 'imdb'))
-                            helpers.make_dirs(path)
-                            file_name = ek.ek(os.path.basename, img_uri)
-                            cached_name = ek.ek(os.path.join, path, file_name)
-                            if not ek.ek(os.path.isfile, cached_name):
-                                helpers.download_file(img_uri, cached_name)
-                            images = dict(poster=dict(thumb='cache/images/imdb/%s' % file_name))
+                            images = dict(poster=dict(thumb='imagecache?path=imdb&source=%s' % img_uri))
+                            sickbeard.CACHE_IMAGE_URL_LIST.add_url(img_uri)
 
                     filtered.append(dict(
                         premiered=dt_ordinal,
@@ -2842,7 +2834,7 @@ class NewHomeAddShows(Home):
                         genres=('No genre yet' if not len(genres) else
                                 genres[0].get_text().strip().lower().replace(' |', ',')),
                         ids=ids,
-                        images=images,
+                        images='' if not img_uri else images,
                         overview='No overview yet' if not overview else self.encode_html(overview[:250:]),
                         rating=0 if not len(rating) else int(helpers.tryFloat(rating) * 10),
                         title=title.get_text().strip(),
@@ -3067,14 +3059,8 @@ class NewHomeAddShows(Home):
 
                 img_uri = item.get('show', {}).get('images', {}).get('poster', {}).get('thumb', {}) or ''
                 if img_uri:
-                    path = ek.ek(os.path.abspath, ek.ek(
-                        os.path.join, sickbeard.CACHE_DIR, 'images', 'trakt', 'poster', 'thumb'))
-                    helpers.make_dirs(path)
-                    file_name = ek.ek(os.path.basename, img_uri)
-                    cached_name = ek.ek(os.path.join, path, file_name)
-                    if not ek.ek(os.path.isfile, cached_name):
-                        helpers.download_file(img_uri, cached_name)
-                    images = dict(poster=dict(thumb='cache/images/trakt/poster/thumb/%s' % file_name))
+                    images = dict(poster=dict(thumb='imagecache?path=trakt/poster/thumb&source=%s' % img_uri))
+                    sickbeard.CACHE_IMAGE_URL_LIST.add_url(img_uri)
 
                 filtered.append(dict(
                     premiered=dt_ordinal,
@@ -5615,9 +5601,28 @@ class Cache(MainHandler):
         if not sql_results:
             sql_results = []
 
-
-
         t = PageTemplate(headers=self.request.headers, file='cache.tmpl')
         t.cacheResults = sql_results
 
         return t.respond()
+
+
+class CachedImages(MainHandler):
+    def index(self, path='', source=None, *args, **kwargs):
+
+        path = path.strip('/')
+        file_name = ek.ek(os.path.basename, source)
+        static_image_path = ek.ek(os.path.join, sickbeard.CACHE_DIR, 'images', path, file_name)
+        static_image_path = ek.ek(os.path.abspath, static_image_path.replace('\\', '/'))
+        if not ek.ek(os.path.isfile, static_image_path) and source is not None and has_image_ext(file_name) \
+                and source in sickbeard.CACHE_IMAGE_URL_LIST:
+            basepath = ek.ek(os.path.dirname, static_image_path)
+            helpers.make_dirs(basepath)
+            if not helpers.download_file(source, static_image_path) and source.find('trakt.us'):
+                helpers.download_file(source.replace('trakt.us', 'trakt.tv'), static_image_path)
+
+        if not ek.ek(os.path.isfile, static_image_path):
+            self.redirect('images/trans.png')
+        else:
+            helpers.set_file_timestamp(static_image_path, min_age=3, new_time=None)
+            self.redirect('cache/images/%s/%s' % (path, file_name))
