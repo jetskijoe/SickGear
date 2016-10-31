@@ -315,7 +315,7 @@
         #if $runtime:
             #set $cur_ep_enddate = $cur_result['localtime'] + datetime.timedelta(minutes = $runtime)
             #if $cur_ep_enddate < $today:
-                #set $show_div = 'listing-overdue'
+                #set $show_div = 'listing-default'
             #elif $cur_ep_airdate >= $next_week.date():
                 #set $show_div = 'listing-toofar'
             #elif $cur_ep_airdate >= $today.date() and $cur_ep_airdate < $next_week.date():

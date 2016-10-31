@@ -461,31 +461,29 @@ class MainHandler(WebHandler):
 
         myDB = db.DBConnection()
         sql_results = myDB.select(
-            'SELECT *, tv_shows.status as show_status FROM tv_episodes, tv_shows WHERE season != 0 AND airdate >= ? AND airdate <= ? AND tv_shows.indexer_id = tv_episodes.showid AND tv_episodes.status NOT IN (%s)'
-            % ','.join(['?'] * len(qualities)),
-            [yesterday, next_week] + qualities)
+            'SELECT *, tv_shows.status as show_status FROM tv_episodes, tv_shows WHERE season != 0 AND airdate >= ? AND airdate <= ? AND tv_shows.indexer_id = tv_episodes.showid',
+            (yesterday, next_week))
 
-        for cur_result in sql_results:
-            done_show_list.append(int(cur_result['showid']))
+
+        #for cur_result in sql_results:
+        #    done_show_list.append(int(cur_result['showid']))
+
+		 #sql_results += myDB.select(
+        #    'SELECT *, tv_shows.status as show_status FROM tv_episodes outer_eps, tv_shows WHERE season != 0 AND showid NOT IN (%s)'
+        #    % ','.join(['?'] * len(done_show_list))
+        #    + ' AND tv_shows.indexer_id = outer_eps.showid AND airdate = (SELECT airdate FROM tv_episodes inner_eps WHERE inner_eps.season != 0 AND inner_eps.showid = outer_eps.showid AND inner_eps.airdate >= ? ORDER BY inner_eps.airdate ASC LIMIT 1)'
+        #    ,(next_week))
 
         sql_results += myDB.select(
-            'SELECT *, tv_shows.status as show_status FROM tv_episodes outer_eps, tv_shows WHERE season != 0 AND showid NOT IN (%s)'
-            % ','.join(['?'] * len(done_show_list))
-            + ' AND tv_shows.indexer_id = outer_eps.showid AND airdate = (SELECT airdate FROM tv_episodes inner_eps WHERE inner_eps.season != 0 AND inner_eps.showid = outer_eps.showid AND inner_eps.airdate >= ? ORDER BY inner_eps.airdate ASC LIMIT 1) AND outer_eps.status NOT IN (%s)'
-            % ','.join(['?'] * len(Quality.DOWNLOADED + Quality.SNATCHED)),
-            done_show_list + [next_week] + Quality.DOWNLOADED + Quality.SNATCHED)
-
-        sql_results += myDB.select(
-            'SELECT *, tv_shows.status as show_status FROM tv_episodes, tv_shows WHERE season != 0 AND tv_shows.indexer_id = tv_episodes.showid AND airdate <= ? AND airdate >= ? AND tv_episodes.status = ? AND tv_episodes.status NOT IN (%s)'
-            % ','.join(['?'] * len(qualities)),
-            [tomorrow, recently, WANTED] + qualities)
+            'SELECT *, tv_shows.status as show_status FROM tv_episodes, tv_shows WHERE season != 0 AND tv_shows.indexer_id = tv_episodes.showid AND airdate <= ? AND airdate >= ?',
+            (tomorrow, recently))
 
         sql_results = list(set(sql_results))
 
         # make a dict out of the sql results
         sql_results = [dict(row) for row in sql_results
                        if Quality.splitCompositeStatus(helpers.tryInt(row['status']))[0] not in
-                       [DOWNLOADED, SNATCHED, SNATCHED_PROPER, SNATCHED_BEST, ARCHIVED, IGNORED]]
+                       [ARCHIVED]]
 
         # multi dimension sort
         sorts = {
@@ -864,6 +862,8 @@ class Home(MainHandler):
             password = sickbeard.PLEX_PASSWORD
 
         cur_result = notifiers.plex_notifier.test_notify(urllib.unquote_plus(host), username, password, server=True)
+        if '<br />' == cur_result:
+            cur_result += 'Fail: No valid host set to connect with'
         final_result = (('Test result for', 'Successful test of')['Fail' not in cur_result]
                         + ' Plex server(s) ... %s<br />\n' % cur_result)
 
@@ -1117,7 +1117,6 @@ class Home(MainHandler):
             return self.redirect('/home/')
 
         t = PageTemplate(headers=self.request.headers, file='restart.tmpl')
-        t.submenu = self.HomeMenu()
 
         # restart
         sickbeard.events.put(sickbeard.events.SystemEvent.RESTART)
@@ -1129,16 +1128,11 @@ class Home(MainHandler):
         if str(pid) != str(sickbeard.PID):
             return self.redirect('/home/')
 
-        updated = sickbeard.versionCheckScheduler.action.update()  # @UndefinedVariable
-        if updated:
-            # do a hard restart
-            sickbeard.events.put(sickbeard.events.SystemEvent.RESTART)
+        if sickbeard.versionCheckScheduler.action.update():
+            return self.restart(pid)
 
-            t = PageTemplate(headers=self.request.headers, file='restart_bare.tmpl')
-            return t.respond()
-        else:
-            return self._genericMessage('Update Failed',
-                                        "Update wasn't successful, not restarting. Check your log for more information.")
+        return self._genericMessage('Update Failed',
+                                    'Update wasn\'t successful, not restarting. Check your log for more information.')
 
     def branchCheckout(self, branch):
         sickbeard.BRANCH = branch
@@ -4483,7 +4477,8 @@ class ConfigSearch(Config):
                    download_propers=None, check_propers_interval=None, allow_high_priority=None,
                    torrent_dir=None, torrent_username=None, torrent_password=None, torrent_host=None,
                    torrent_label=None, torrent_path=None, torrent_verify_cert=None,
-                   torrent_seed_time=None, torrent_paused=None, torrent_high_bandwidth=None, ignore_words=None, require_words=None):
+                   torrent_seed_time=None, torrent_paused=None, torrent_high_bandwidth=None, ignore_words=None, require_words=None,
+                   backlog_nofull=None):
 
         results = []
 
@@ -4499,6 +4494,11 @@ class ConfigSearch(Config):
         config.change_BACKLOG_FREQUENCY(backlog_frequency)
         sickbeard.search_backlog.BacklogSearcher.change_backlog_parts(old_backlog_frequency, sickbeard.BACKLOG_FREQUENCY)
         sickbeard.BACKLOG_DAYS = config.to_int(backlog_days, default=7)
+
+        sickbeard.BACKLOG_NOFULL = bool(config.checkbox_to_value(backlog_nofull))
+        if sickbeard.BACKLOG_NOFULL:
+            my_db = db.DBConnection('cache.db')
+            my_db.action('DELETE FROM backlogparts')
 
         sickbeard.USE_NZBS = config.checkbox_to_value(use_nzbs)
         sickbeard.USE_TORRENTS = config.checkbox_to_value(use_torrents)

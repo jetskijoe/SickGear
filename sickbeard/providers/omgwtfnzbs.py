@@ -36,12 +36,12 @@ class OmgwtfnzbsProvider(generic.NZBProvider):
     def __init__(self):
         generic.NZBProvider.__init__(self, 'omgwtfnzbs')
 
-        self.url = 'https://omgwtfnzbs.org/'
+        self.url = 'https://omgwtfnzbs.me/'
 
-        self.url_base = 'https://omgwtfnzbs.org/'
-        self.url_api = 'https://api.omgwtfnzbs.org/'
+        self.url_base = 'https://omgwtfnzbs.me/'
+        self.url_api = 'https://api.omgwtfnzbs.me/'
         self.urls = {'config_provider_home_uri': self.url_base,
-                     'cache': 'https://rss.omgwtfnzbs.org/rss-download.php?%s',
+                     'cache': 'https://rss.omgwtfnzbs.me/rss-download.php?%s',
                      'search': self.url_api + 'json/?%s',
                      'get': self.url_base + '%s',
                      'cache_html': self.url_base + 'browse.php?cat=tv%s',
@@ -99,8 +99,11 @@ class OmgwtfnzbsProvider(generic.NZBProvider):
             data = self.get_url(url, timeout=90)
             if not data:
                 return result
+            if '<strong>Limit Reached</strong>' in data:
+                logger.log('Daily Nzb Download limit reached', logger.DEBUG)
+                return result
             if '</nzb>' not in data or 'seem to be logged in' in data:
-                logger.log(u'Failed nzb data response: %s' % data, logger.DEBUG)
+                logger.log('Failed nzb data response: %s' % data, logger.DEBUG)
                 return result
             result = classes.NZBDataSearchResult(episodes)
             result.extraInfo += [data]

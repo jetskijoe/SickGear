@@ -185,6 +185,11 @@
 * Change fuzzyMoment to handle air dates before ~1970 on display show page
 * Change limit availability of fuzzy date functions on General Config/Interface to English locale systems
 * Add Plex notifications secure connect where available (PMS 1.1.4.2757 and newer with username and password)
+* Add if all torrent caches fail, save magnets from RARBG and TPB as files for clients (or plugins) that now support it
+* Add advice to logs if all caches fail to switch to direct client connect instead of the basic blackhole method
+* Add search setting "Disable auto full backlog"
+* Change improve performance and reduce start up time
+* Fix button "Checkout branch" when stuck on disabled
 
 [develop changelog]
 * Change send nzb data to NZBGet for Anizb instead of url
@@ -212,6 +217,9 @@
 * Change ensure sbdatetime functions return formatted string instead of tuple
 * Change image cache processing for browse Trakt page
 * Change logging for newznab response code 910 and add check for empty response data
+* Change improve reverse proxy web_root support
+* Fix "error trying to retrieve image" from tvdb due to there is no image to fetch
+* Fix PiSexy for vip user class
 
 
 ### 0.11.16 (2016-10-16 17:30:00 UTC)

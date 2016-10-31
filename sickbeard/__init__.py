@@ -210,6 +210,7 @@ UPDATE_FREQUENCY = None
 RECENTSEARCH_STARTUP = False
 BACKLOG_FREQUENCY = None
 BACKLOG_STARTUP = False
+BACKLOG_NOFULL = False
 
 DEFAULT_AUTOPOSTPROCESSER_FREQUENCY = 10
 DEFAULT_RECENTSEARCH_FREQUENCY = 40
@@ -514,7 +515,7 @@ def initialize(consoleLogging=True):
             USE_PLEX, PLEX_NOTIFY_ONSNATCH, PLEX_NOTIFY_ONDOWNLOAD, PLEX_NOTIFY_ONSUBTITLEDOWNLOAD, \
             PLEX_UPDATE_LIBRARY, PLEX_SERVER_HOST, PLEX_HOST, PLEX_USERNAME, PLEX_PASSWORD, \
             USE_TRAKT, TRAKT_CONNECTED_ACCOUNT, TRAKT_ACCOUNTS, TRAKT_MRU, TRAKT_VERIFY, TRAKT_REMOVE_WATCHLIST, TRAKT_TIMEOUT, TRAKT_USE_WATCHLIST, TRAKT_METHOD_ADD, TRAKT_START_PAUSED, traktCheckerScheduler, TRAKT_SYNC, TRAKT_DEFAULT_INDEXER, TRAKT_REMOVE_SERIESLIST, TRAKT_UPDATE_COLLECTION, \
-            BACKLOG_FREQUENCY, DEFAULT_BACKLOG_FREQUENCY, MIN_BACKLOG_FREQUENCY, MAX_BACKLOG_FREQUENCY, BACKLOG_STARTUP, SKIP_REMOVED_FILES, \
+            BACKLOG_FREQUENCY, DEFAULT_BACKLOG_FREQUENCY, MIN_BACKLOG_FREQUENCY, MAX_BACKLOG_FREQUENCY, BACKLOG_STARTUP, BACKLOG_NOFULL, SKIP_REMOVED_FILES, \
             showUpdateScheduler, __INITIALIZED__, LAUNCH_BROWSER, TRASH_REMOVE_SHOW, TRASH_ROTATE_LOGS, HOME_SEARCH_FOCUS, SORT_ARTICLE, showList, loadingShowList, UPDATE_SHOWS_ON_START, SHOW_UPDATE_HOUR, \
             NEWZNAB_DATA, INDEXER_DEFAULT, INDEXER_TIMEOUT, USENET_RETENTION, TORRENT_DIR, \
             QUALITY_DEFAULT, FLATTEN_FOLDERS_DEFAULT, SUBTITLES_DEFAULT, STATUS_DEFAULT, WANTED_BEGIN_DEFAULT, WANTED_LATEST_DEFAULT, RECENTSEARCH_STARTUP, \
@@ -740,6 +741,7 @@ def initialize(consoleLogging=True):
 
         RECENTSEARCH_STARTUP = bool(check_setting_int(CFG, 'General', 'recentsearch_startup', 0))
         BACKLOG_STARTUP = bool(check_setting_int(CFG, 'General', 'backlog_startup', 0))
+        BACKLOG_NOFULL = bool(check_setting_int(CFG, 'General', 'backlog_nofull', 0))
         SKIP_REMOVED_FILES = check_setting_int(CFG, 'General', 'skip_removed_files', 0)
 
         USENET_RETENTION = check_setting_int(CFG, 'General', 'usenet_retention', 500)
@@ -1308,11 +1310,7 @@ def start():
 
 
 def halt():
-    global __INITIALIZED__, backlogSearchScheduler, \
-        showUpdateScheduler, versionCheckScheduler, showQueueScheduler, \
-        properFinderScheduler, autoPostProcesserScheduler, searchQueueScheduler, \
-        subtitlesFinderScheduler, traktCheckerScheduler, \
-        recentSearchScheduler, events, started
+    global __INITIALIZED__, started
 
     with INIT_LOCK:
 
@@ -1320,54 +1318,30 @@ def halt():
 
             logger.log(u'Aborting all threads')
 
-            events.stop.set()
-            logger.log(u'Waiting for the EVENTS thread to exit')
-            try:
-                events.join(10)
-            except:
-                pass
+            schedulers = [
+                recentSearchScheduler,
+                backlogSearchScheduler,
+                showUpdateScheduler,
+                versionCheckScheduler,
+                showQueueScheduler,
+                searchQueueScheduler,
 
-            recentSearchScheduler.stop.set()
-            logger.log(u'Waiting for the RECENTSEARCH thread to exit')
-            try:
-                recentSearchScheduler.join(10)
-            except:
-                pass
+                properFinderScheduler,
+                autoPostProcesserScheduler,
+                subtitlesFinderScheduler,
 
-            backlogSearchScheduler.stop.set()
-            logger.log(u'Waiting for the BACKLOG thread to exit')
-            try:
-                backlogSearchScheduler.join(10)
-            except:
-                pass
+                events
+            ]
 
-            showUpdateScheduler.stop.set()
-            logger.log(u'Waiting for the SHOWUPDATER thread to exit')
-            try:
-                showUpdateScheduler.join(10)
-            except:
-                pass
+            for thread in schedulers:
+                thread.stop.set()
 
-            versionCheckScheduler.stop.set()
-            logger.log(u'Waiting for the VERSIONCHECKER thread to exit')
-            try:
-                versionCheckScheduler.join(10)
-            except:
-                pass
-
-            showQueueScheduler.stop.set()
-            logger.log(u'Waiting for the SHOWQUEUE thread to exit')
-            try:
-                showQueueScheduler.join(10)
-            except:
-                pass
-
-            searchQueueScheduler.stop.set()
-            logger.log(u'Waiting for the SEARCHQUEUE thread to exit')
-            try:
-                searchQueueScheduler.join(10)
-            except:
-                pass
+            for thread in schedulers:
+                logger.log('Waiting for the %s thread to exit' % thread.name)
+                try:
+                    thread.join(10)
+                except RuntimeError:
+                    pass
 
             if PROCESS_AUTOMATICALLY:
                 autoPostProcesserScheduler.stop.set()
@@ -1376,14 +1350,6 @@ def halt():
                     autoPostProcesserScheduler.join(10)
                 except:
                     pass
-
-            # if USE_TRAKT:
-            #     traktCheckerScheduler.stop.set()
-            #     logger.log(u'Waiting for the TRAKTCHECKER thread to exit')
-            #     try:
-            #         traktCheckerScheduler.join(10)
-            #     except:
-            #         pass
 
             if DOWNLOAD_PROPERS:
                 properFinderScheduler.stop.set()
@@ -1498,6 +1464,7 @@ def save_config():
     new_config['General']['allow_high_priority'] = int(ALLOW_HIGH_PRIORITY)
     new_config['General']['recentsearch_startup'] = int(RECENTSEARCH_STARTUP)
     new_config['General']['backlog_startup'] = int(BACKLOG_STARTUP)
+    new_config['General']['backlog_nofull'] = int(BACKLOG_NOFULL)
     new_config['General']['skip_removed_files'] = int(SKIP_REMOVED_FILES)
     new_config['General']['quality_default'] = int(QUALITY_DEFAULT)
     new_config['General']['status_default'] = int(STATUS_DEFAULT)

@@ -230,8 +230,22 @@ class GenericProvider:
             else:
                 del(self.session.headers['Referer'])
 
-        if not saved:
+        if not saved and 'magnet' == link_type:
             logger.log(u'All torrent cache servers failed to return a downloadable result', logger.ERROR)
+            logger.log(u'Advice: in search settings, change from method blackhole to direct torrent client connect',
+                       logger.ERROR)
+            final_file = ek.ek(os.path.join, final_dir, '%s.%s' % (helpers.sanitizeFileName(result.name), link_type))
+            try:
+                with open(final_file, 'wb') as fp:
+                    fp.write(result.url)
+                    fp.flush()
+                    os.fsync(fp.fileno())
+                logger.log(u'Saved magnet link to file as some clients (or plugins) support this, %s' % final_file)
+
+            except (StandardError, Exception):
+                pass
+        elif not saved:
+            logger.log(u'Server failed to return anything useful', logger.ERROR)
 
         return saved
 
@@ -904,7 +918,7 @@ class TorrentProvider(object, GenericProvider):
                     self.urls[k] = v % {'home': cur_url, 'vars': getattr(self, 'url_vars', {}).get(k, '')}
 
                 if last_url != cur_url or (expire and not (expire > int(time.time()))):
-                    sickbeard.PROVIDER_HOMES[self.get_id()] = (cur_url, int(time.time()) + (15*60))
+                    sickbeard.PROVIDER_HOMES[self.get_id()] = (cur_url, int(time.time()) + (60*60))
                     sickbeard.save_config()
                 return cur_url
 
