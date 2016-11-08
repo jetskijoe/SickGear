@@ -325,6 +325,56 @@ class GenericProvider:
             url_tmpl = '%s'
         return url if re.match('(?i)https?://', url) else (url_tmpl % url.lstrip('/'))
 
+    def _header_row(self, table_row, custom_match=None, header_strip=''):
+        """
+        :param header_row: Soup resultset of table header row
+        :param custom_match: Dict key/values to override one or more default regexes
+        :param header_strip: String regex of ambiguities to remove from headers
+        :return: dict column indices or None for leech, seeds, and size
+        """
+        results = {}
+        rc = dict((k, re.compile('(?i)' + r)) for (k, r) in dict(
+            {'seed': r'(?:seed|s/l)', 'leech': r'(?:leech|peers)', 'size': r'(?:size)'}.items()
+            + ({}, custom_match)[any([custom_match])].items()).items())
+        table = table_row.find_parent('table')
+        header_row = table.tr or table.thead.tr or table.tbody.tr
+        for y in [x for x in header_row(True) if x.attrs.get('class')]:
+            y['class'] = '..'.join(y['class'])
+        all_cells = header_row.find_all('th')
+        all_cells = all_cells if any(all_cells) else header_row.find_all('td')
+
+        headers = [re.sub(
+            r'[\s]+', '',
+            ((any([cell.get_text()]) and any([rc[x].search(cell.get_text()) for x in rc.keys()]) and cell.get_text())
+             or (cell.attrs.get('id') and any([rc[x].search(cell['id']) for x in rc.keys()]) and cell['id'])
+             or (cell.attrs.get('title') and any([rc[x].search(cell['title']) for x in rc.keys()]) and cell['title'])
+             or next(iter(set(filter(lambda z: any([z]), [
+                next(iter(set(filter(lambda y: any([y]), [
+                    cell.find(tag, **p) for p in [{attr: rc[x]} for x in rc.keys()]]))), {}).get(attr)
+                for (tag, attr) in [
+                    ('img', 'title'), ('img', 'src'), ('i', 'title'), ('i', 'class'),
+                    ('abbr', 'title'), ('a', 'title'), ('a', 'href')]]))), '')
+             or cell.get_text()
+             )).strip() for cell in all_cells]
+        headers = [re.sub(header_strip, '', x) for x in headers]
+        all_headers = headers
+        colspans = [int(cell.attrs.get('colspan', 0)) for cell in all_cells]
+        if any(colspans):
+            all_headers = []
+            for i, width in enumerate(colspans):
+                all_headers += [headers[i]] + ([''] * (width - 1))
+
+        for k, r in rc.iteritems():
+            if k not in results:
+                for name in filter(lambda v: any([v]) and r.search(v), all_headers[::-1]):
+                    results[k] = all_headers.index(name) - len(all_headers)
+                    break
+
+        for missing in set(rc.keys()) - set(results.keys()):
+            results[missing] = None
+
+        return results
+
     @staticmethod
     def _dhtless_magnet(btih, name=None):
         """
@@ -899,11 +949,13 @@ class TorrentProvider(object, GenericProvider):
         if not url_list and getattr(self, 'url_edit', None) or 10 > max([len(x) for x in url_list]):
             return None
 
+        url_list = ['%s/' % x.rstrip('/') for x in url_list]
         last_url, expire = sickbeard.PROVIDER_HOMES.get(self.get_id(), ('', None))
         if 'site down' == last_url:
             if expire and (expire > int(time.time())):
                 return None
         elif last_url:
+            last_url = last_url.replace('getrss.php', '/')  # correct develop typo after a network outage (0.11>0.12)
             last_url in url_list and url_list.remove(last_url)
             url_list.insert(0, last_url)
 
@@ -1091,14 +1143,15 @@ class TorrentProvider(object, GenericProvider):
         return results
 
     @staticmethod
-    def _has_no_results(*html):
+    def _has_no_results(html):
         return re.search(r'(?i)<(?:b|div|h\d|p|span|strong|td)[^>]*>\s*(?:' +
                          'your\ssearch.*?did\snot\smatch|' +
                          '(?:nothing|0</b>\s+torrents)\sfound|' +
-                         '(sorry,\s)?no\s(?:results|torrents)\s(found|here|match)|' +
-                         '.*?there\sare\sno\sresults|' +
-                         '.*?no\shits\.\sTry\sadding' +
-                         ')', html[0])
+                         '(?:sorry,\s)?no\s(?:results|torrents)\s(found|here|match)|' +
+                         'no\s(?:match|results|torrents)!*|'
+                         '[^<]*?there\sare\sno\sresults|' +
+                         '[^<]*?no\shits\.\sTry\sadding' +
+                         ')', html)
 
     def _cache_data(self):
 

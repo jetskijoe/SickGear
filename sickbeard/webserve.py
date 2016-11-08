@@ -2424,7 +2424,7 @@ class NewHomeAddShows(Home):
 
         filtered = []
         try:
-            resp = TraktAPI().trakt_request(url)
+            resp = TraktAPI().trakt_request(url, sleep_retry=5)
             if len(resp):
                 filtered = resp
         except TraktException as e:
@@ -5478,7 +5478,8 @@ class UI(MainHandler):
 class ErrorLogs(MainHandler):
     @staticmethod
     def ErrorLogsMenu():
-        return [{'title': 'Clear Errors', 'path': 'errorlogs/clearerrors/'},]
+        return [{'title': 'Download Log', 'path': 'errorlogs/downloadlog/'},
+                {'title': 'Clear Errors', 'path': 'errorlogs/clearerrors/'},]
 
     def index(self, *args, **kwargs):
 
@@ -5490,6 +5491,23 @@ class ErrorLogs(MainHandler):
     def clearerrors(self, *args, **kwargs):
         classes.ErrorViewer.clear()
         self.redirect('/errorlogs/')
+
+    def downloadlog(self, *args, **kwargs):
+        logfile_name = logger.current_log_file()
+        self.set_header('Content-Type', 'application/octet-stream')
+        self.set_header('Content-Description', 'Logfile Download')
+        self.set_header('Content-Length', ek.ek(os.path.getsize, logfile_name))
+        self.set_header('Content-Disposition', 'attachment; filename=sickgear.log')
+        with open(logfile_name, 'r') as logfile:
+            try:
+                while True:
+                    data = logfile.read(4096)
+                    if not data:
+                        break
+                    self.write(data)
+                self.finish()
+            except (StandardError, Exception):
+                return
 
     def viewlog(self, minLevel=logger.MESSAGE, maxLines=500):
 

@@ -190,6 +190,7 @@
 * Add search setting "Disable auto full backlog"
 * Change improve performance and reduce start up time
 * Fix button "Checkout branch" when stuck on disabled
+* Add 'Download Log' to 'Logs & Errors' page
 
 [develop changelog]
 * Change send nzb data to NZBGet for Anizb instead of url
@@ -220,6 +221,12 @@
 * Change improve reverse proxy web_root support
 * Fix "error trying to retrieve image" from tvdb due to there is no image to fetch
 * Fix PiSexy for vip user class
+* Change retry sleep timeout for Trakt searches to prevent issues when Trakt is down
+* Fix TVDb search issue when only 1 result is returned
+* Change improve TvChaos item parsing and can use qualities instead of 'Unknown'
+* Change remove deprecated providers being saved to config
+* Change prevent a missing slash typo and correct develop typo after a network outage
+* Change send download logfile as stream
 
 
 ### 0.11.16 (2016-10-16 17:30:00 UTC)
