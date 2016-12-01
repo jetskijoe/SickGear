@@ -193,6 +193,12 @@
 * Fix button "Checkout branch" when stuck on disabled
 * Add 'Download Log' to 'Logs & Errors' page
 * Change consolidate shutdown with restart, improve systemd support, bring order to on-init globals
+* Change speed improvement in finding needed categories/qualities (sd, hd, uhd)
+* Change add guidance when using the "unknown" quality selection
+* Change prevent browser auto completing password fields on config pages
+* Change refresh page when torrent providers are enabled/disabled
+* Change only display Search Settings/"Usenet retention" if Search NZBs is enabled
+* Change sab API request to prevent naming mismatch
 
 [develop changelog]
 * Change send nzb data to NZBGet for Anizb instead of url
@@ -229,6 +235,12 @@
 * Change remove deprecated providers being saved to config
 * Change prevent a missing slash typo and correct develop typo after a network outage
 * Change send download logfile as stream
+* Fix launch browser during startup
+* Change don't exclude "unknown" from search
+* Fix UHD category select in Recent Search
+* Change only update enabled torrent providers
+* Fix restart when switching from master to develop
+* Change update IMDb show parser
 
 
 ### 0.11.16 (2016-10-16 17:30:00 UTC)
