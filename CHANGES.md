@@ -1,4 +1,38 @@
-﻿### 0.12.0 (2016-xx-xx xx:xx:xx UTC)
+﻿### 0.13.0 (2016-xx-xx xx:xx:xx UTC)
+
+* Change don't fetch caps for disabled nzb providers
+* Change recent search to use centralised title and URL parser for newznab
+* Add display unaired season 1 episodes of a new show in regular and pro I view modes
+* Change improve page load time when loading images
+* Update isotope library 2.2.2 to 3.0.1
+* Add lazyload package 3.0.0 (2e318b1)
+
+
+[develop changelog]
+
+
+
+### 0.12.4 (2016-12-31 00:50:00 UTC)
+
+* Remove Wombles nzb provider
+
+
+### 0.12.3 (2016-12-27 15:20:00 UTC)
+
+* Add UK date format handling to name parser
+
+
+### 0.12.2 (2016-12-20 16:00:00 UTC)
+
+* Change Rarbg and IPT urls
+
+
+### 0.12.1 (2016-12-19 12:00:00 UTC)
+
+* Fix image scan log for show titles that contain "%"
+
+
+### 0.12.0 (2016-12-19 03:00:00 UTC)
 
 * Add strict Python version check (equal to, or higher than 2.7.9 and less than 3.0), **exit** if incorrect version
 * Update unidecode library 0.04.11 to 0.04.18 (fd57cbf)
@@ -37,7 +71,7 @@
 * Add passthru of param "post_json" to Requests() "json" in helpers.getURL
 * Add search show Name to Show List Layout: Poster
 * Change indicate when not sorting with article by dimming ("The", "A", "An") on Show List, Episode, History,
-  Mass Update, Add with Browse and from Existing views
+  Bulk Change, Add with Browse and from Existing views
 * Add Emby notifier to config/Notifications
 * Use a subprocess and cp for copying files on posix systems to preserve file metadata
 * Fix alternative unicode show names from breaking search
@@ -133,7 +167,7 @@
 * Change post process to join incrementally named (i.e. file.001 to file.nnn) split files
 * Change replace unrar2 lib with rarfile 3.0 and UnRAR.exe 5.40 freeware
 * Change post process "Copy" to delete redundant files after use
-* Add indicator for public access search providers
+* Add indicator for public access media providers
 * Change improve probability selecting most seeded release
 * Change add the TorrentDay x265 category to search
 * Add smart logic to reduce api hits to newznab server types and improve how nzbs are downloaded
@@ -141,7 +175,7 @@
 * Change improve performance by using newznab server advertised capabilities
 * Change config/providers newznab to display only non-default categories
 * Change use scene season for wanted segment in backlog if show is scene numbering
-* Change combine Manage Searches / Backlog Search / Limited and Full to Force
+* Change combine Media Search / Backlog Search / Limited and Full to Force
 * Change consolidate limited and full backlog
 * Change config / Search / Backlog search frequency to instead spread backlog searches over a number of days
 * Change migrate minimum used value for search frequency into new minimum 7 for search spread
@@ -172,7 +206,7 @@
 * Remove redundant config/general/"Allow incomplete show data"
 * Fix status reset of a snatched, downloaded, or archived episode when its date is set to never (no date) on the info
   source and there is no media file
-* Change only show unaired episodes on Manage/Backlog Overview and Manage/Episode Status Management where relevant
+* Change only show unaired episodes on Manage/Backlog Overview and Manage/Episode Status where relevant
 * Change locally cache Trakt/IMDb/Anime show cards
 * Change allow pp to replace files with a repack or proper of same quality
 * Fix ensure downloaded eps are not shown on episode view
@@ -201,52 +235,67 @@
 * Change sab API request to prevent naming mismatch
 * Change update rTorrent systems
 * Change logger to properly cleanup used resources
-
-[develop changelog]
-* Change send nzb data to NZBGet for Anizb instead of url
-* Change revert test_common.py include file placement so Travis builds don't fail
-* Fix Nyaa and TT torrent providers
-* Change PrivateHD torrent provider
-* Fix Add from Trakt
-* Change unpack files once only in auto post processing copy mode
-* Fix data logger for clients
-* Change handle when a torrent provider goes down and its urls are cleared
-* Add handler for when rar files can not be opened during post processing
-* Fix join clean up
-* Fix add custom torrent RSS
-* Remove ILT torrent provider
-* Update Tornado Web Server 4.3.dev1 (1b6157d) to 4.4.dev1 (c2b4d05)
-* Change add support for freebsd /var/db/zoneinfo when getting local timezone information
-* Fix issue with post processing propers/repacks
-* Change use legacy tzlocal() if new gettz fails to create
-* Change load cached images on demand
-* Change add rate limit handler for info source
-* Change improve security of cached image use
-* Change add helper function to validate acceptable image file extension
-* Change make sure avi files are closed if an error occurs
-* Change refactor hachoir scan_index for non RIFF file processing
-* Change ensure sbdatetime functions return formatted string instead of tuple
-* Change image cache processing for browse Trakt page
-* Change logging for newznab response code 910 and add check for empty response data
-* Change improve reverse proxy web_root support
-* Fix "error trying to retrieve image" from tvdb due to there is no image to fetch
-* Fix PiSexy for vip user class
-* Change retry sleep timeout for Trakt searches to prevent issues when Trakt is down
-* Fix TVDb search issue when only 1 result is returned
-* Change improve TvChaos item parsing and can use qualities instead of 'Unknown'
-* Change remove deprecated providers being saved to config
-* Change prevent a missing slash typo and correct develop typo after a network outage
-* Change send download logfile as stream
-* Fix launch browser during startup
-* Change don't exclude "unknown" from search
-* Fix UHD category select in Recent Search
-* Change only update enabled torrent providers
-* Fix restart when switching from master to develop
-* Change update IMDb show parser
-* Fix rTorrent auth and magnet issue
-* Change torrent provider links for bts, et, rarbg, tpb
-* Change IPT uri used for sanity check
-* Change PiSexy auth check
+* Add fanart to Episodes View, Display Show, and Edit Show page
+* Add path used for fanart images <Cache Dir>/images/fanart (<Cache Dir> value on Help page)
+* Add populate images when the daily show updater is run with default maximum 3 images per show
+* Change force full update in a show will replace existing images with new
+* Add "Maximum fanart image files per show to cache" to config General/Interface
+* Add fanart livepanel to lower right of Episodes View and Display Show page
+* Add highlight panel red on Episodes view until button is clicked a few times
+* Add flick through multiple background images on Episodes View and Display Show page
+* Add persistent move poster image to right hand side or hide on Display Show page (multi-click the eye)
+* Add persistent translucency of background images on Episodes View and Display Show page
+* Add persistent fanart rating to avoid art completely, random display, random from a group, or display fave always
+* Add persistent views of the show detail on Display Show page
+* Add persistent views on Episodes View
+* Add persistent button to collapse and expand card images on Episode View/Layout daybyday
+* Add non persistent "Open gear" and "Backart only" image views to Episodes View and Display Show page
+* Add "smart" selection of fanart image to display on Episode view
+* Change insert [!] and change text shade of ended shows in drop down show list on Display Show page
+* Change button graphic for next and previous show of show list on Display Show page
+* Add logic to hide some livepanel buttons until artwork becomes available or in other circumstances
+* Add "(Ended)" where appropriate to show title on Display Show page
+* Change use tense for label "Airs" or "Aired" depending on if show ended
+* Change display "No files" instead of "0 files" and "Upgrade once" instead of "End upgrade on first match"
+* Add persistent button to newest season to "Show all" episodes
+* Add persistent button to all shown seasons to "Hide most" episodes
+* Add button to older seasons to toggle "Show Season n" or "Show Specials" with "Hide..." episodes
+* Add season level status counts next to each season header on display show page
+* Add sorting to season table headers on display show page
+* Add filename and size to quality badge on display show page, removed its redundant "downloaded" text
+* Remove redundant "Add show" buttons
+* Change combine the NFO and TBN columns into a single Meta column
+* Change reduce screen estate used by episode numbers columns
+* Change improve clarity of text on Add Show page
+* Change rename Edit show/"Post-Processing" tab to "Other"
+* Add "Reset fanart ratings" to show Edit/Other tab
+* Add fanart keys guide to show Edit/Other tab
+* Change add placeholder tip to "Alternative release name(s)" on show Edit
+* Change add placeholder tip to search box on shows Search
+* Change hide Anime tips on show Edit when selecting its mutually exclusive options
+* Change label "End upgrade on first match" to "Upgrade once" on show Edit
+* Change improve performance rendering displayShow
+* Add total episodes to start of show description (excludes specials if those are hidden)
+* Add "Add show" actions i.e. "Search", "Trakt cards", "IMDb cards", and "Anime" to Shows menu
+* Add "Import (existing)" action to Tools menu
+* Change SD quality from red to dark green, 2160p UHD 4K is red
+* Change relocate the functions of Logs & Errors to the right side Tools menu -> View Log File
+* Add warning indicator to the Tools menu in different colour depending on error count (green through red)
+* Change View Log error item output from reversed to natural order
+* Change View Log File add a typeface and some colour to improve readability
+* Change View Log File/Errors only display "Clear Errors" button when there are errors to clear
+* Change improve performance of View Log File
+* Change fanart images to not use cache as cache is not required
+* Change rename "Manual Post-Processing" menu item to "Process Media"
+* Change rename "Search Providers" -> "Media Providers"
+* Change rename "Manage Searches" -> "Media Search"
+* Change rename "Episode Status Management" -> "Episode Status"
+* Change rename "Mass Update" -> "Bulk Change"
+* Change indicate default home on "Shows Menu"
+* Change relocate "Episodes" menu to "Shows"/"Episode Schedule"
+* Change relocate "History" menu to "Shows"/"History"
+* Change remove restart/shutdown buttons from "Show List"
+* Change remove superfluous buttons from all submenus
 
 
 ### 0.11.16 (2016-10-16 17:30:00 UTC)
@@ -370,7 +419,7 @@
 * Fix post processing season pack folders
 * Fix saving torrent provider option "Seed until ratio" after recent refactor
 * Change white text in light theme on Manage / Episode Status Management page to black for better readability
-* Change displayShow page episode colours when a minimum quality is met with "End upgrade on first match"
+* Change displayShow page episode colours when a minimum quality is met with "Upgrade once"
 * Add seed time per provider for torrent clients that support seed time per torrent, i.e. currently only uTorrent
 * Remove seed time display for Transmission in config/Torrent Search page because the torrent client doesn't support it
 * Add PreToMe torrent provider
@@ -558,7 +607,7 @@
 * Change Trakt url to fix baseline uses (e.g. add from trending)
 * Fix edit on show page for shows that have anime enabled in mass edit
 * Fix issue parsing items in ToktoToshokan provider
-* Change to only show option "End upgrade on first match" on edit show page if quality custom is selected
+* Change to only show option "Upgrade once" on edit show page if quality custom is selected
 * Change label "Show is grouped in" in edit show page to "Show is in group" and move the section higher
 * Fix post processing of anime with version tags
 * Change accept SD titles that contain audio quality

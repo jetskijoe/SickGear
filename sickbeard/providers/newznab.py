@@ -163,24 +163,26 @@ class NewznabProvider(generic.NZBProvider):
         self._last_recent_search = value
 
     def check_cap_update(self):
-        if not self._caps or (datetime.datetime.now() - self._caps_last_updated) >= datetime.timedelta(days=1):
+        if self.enabled and \
+                (not self._caps or (datetime.datetime.now() - self._caps_last_updated) >= datetime.timedelta(days=1)):
             self.get_caps()
 
     def _get_caps_data(self):
         xml_caps = None
-        if datetime.date.today() - self._caps_need_apikey['date'] > datetime.timedelta(days=30) or \
-                not self._caps_need_apikey['need']:
-            self._caps_need_apikey['need'] = False
-            data = self.get_url('%s/api?t=caps' % self.url)
-            if data:
-                xml_caps = helpers.parse_xml(data)
-        if (xml_caps is None or not hasattr(xml_caps, 'tag') or xml_caps.tag == 'error' or xml_caps.tag != 'caps') and \
-                self.maybe_apikey():
-            data = self.get_url('%s/api?t=caps&apikey=%s' % (self.url, self.maybe_apikey()))
-            if data:
-                xml_caps = helpers.parse_xml(data)
-                if xml_caps and hasattr(xml_caps, 'tag') and xml_caps.tag == 'caps':
-                    self._caps_need_apikey = {'need': True, 'date': datetime.date.today()}
+        if self.enabled:
+            if datetime.date.today() - self._caps_need_apikey['date'] > datetime.timedelta(days=30) or \
+                    not self._caps_need_apikey['need']:
+                self._caps_need_apikey['need'] = False
+                data = self.get_url('%s/api?t=caps' % self.url)
+                if data:
+                    xml_caps = helpers.parse_xml(data)
+            if (xml_caps is None or not hasattr(xml_caps, 'tag') or xml_caps.tag == 'error' or xml_caps.tag != 'caps') and \
+                    self.maybe_apikey():
+                data = self.get_url('%s/api?t=caps&apikey=%s' % (self.url, self.maybe_apikey()))
+                if data:
+                    xml_caps = helpers.parse_xml(data)
+                    if xml_caps and hasattr(xml_caps, 'tag') and xml_caps.tag == 'caps':
+                        self._caps_need_apikey = {'need': True, 'date': datetime.date.today()}
         return xml_caps
 
     def get_caps(self):
@@ -228,7 +230,8 @@ class NewznabProvider(generic.NZBProvider):
         if not caps and self._caps and not all_cats and self._caps_all_cats and not cats and self._caps_cats:
             return
 
-        self._caps_last_updated = datetime.datetime.now()
+        if self.enabled:
+            self._caps_last_updated = datetime.datetime.now()
 
         if not caps and self.get_id() not in ['sick_beard_index']:
             caps[INDEXER_TVDB] = 'tvdbid'
@@ -286,7 +289,7 @@ class NewznabProvider(generic.NZBProvider):
                     logger.WARNING)
             else:
                 logger.log('Unknown error given from %s: %s' % (self.name, data.get('description', '')),
-                           logger.ERROR)
+                           logger.WARNING)
             return False
 
         return True
@@ -411,13 +414,12 @@ class NewznabProvider(generic.NZBProvider):
     def _title_and_url(self, item):
         title, url = None, None
         try:
-            title = item.findtext('title')
-            url = item.findtext('link')
+            title = ('%s' % item.findtext('title')).strip()
+            for pattern, repl in ((r'\s+', '.'), (r'(?i)-Obfuscated$', '')):
+                title = re.sub(pattern, repl, title)
+            url = str(item.findtext('link')).replace('&amp;', '&')
         except (StandardError, Exception):
             pass
-
-        title = title and re.sub(r'\s+', '.', '%s' % title)
-        url = url and str(url).replace('&amp;', '&')
 
         return title, url
 
@@ -636,7 +638,7 @@ class NewznabProvider(generic.NZBProvider):
                     data = helpers.getURL(search_url)
 
                     if not data:
-                        logger.log('No Data returned from %s' % self.name, logger.DEBUG)
+                        logger.log('No Data returned from %s' % self.name, logger.WARNING)
                         break
 
                     # hack this in until it's fixed server side
@@ -647,14 +649,14 @@ class NewznabProvider(generic.NZBProvider):
                         parsed_xml, n_spaces = self.cache.parse_and_get_ns(data)
                         items = parsed_xml.findall('channel/item')
                     except (StandardError, Exception):
-                        logger.log('Error trying to load %s RSS feed' % self.name, logger.ERROR)
+                        logger.log('Error trying to load %s RSS feed' % self.name, logger.WARNING)
                         break
 
                     if not self.check_auth_from_data(parsed_xml):
                         break
 
                     if 'rss' != parsed_xml.tag:
-                        logger.log('Resulting XML from %s isn\'t RSS, not parsing it' % self.name, logger.ERROR)
+                        logger.log('Resulting XML from %s isn\'t RSS, not parsing it' % self.name, logger.WARNING)
                         break
 
                     i and time.sleep(2.1)
@@ -856,19 +858,14 @@ class NewznabCache(tvcache.TVCache):
     # overwrite method with that parses the rageid from the newznab feed
     def _parseItem(self, ns, item):
 
-        title = item.findtext('title')
-        url = item.findtext('link')
+        title, url = self._title_and_url(item)
 
         ids = self.parse_ids(item, ns)
-
-        self._checkItemAuth(title, url)
 
         if not title or not url:
             logger.log('The data returned from the %s feed is incomplete, this result is unusable'
                        % self.provider.name, logger.DEBUG)
             return None
-
-        url = self._translateLinkURL(url)
 
         logger.log('Attempting to add item from RSS to cache: %s' % title, logger.DEBUG)
         return self.add_cache_entry(title, url, id_dict=ids)
