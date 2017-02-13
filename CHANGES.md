@@ -6,10 +6,50 @@
 * Change improve page load time when loading images
 * Update isotope library 2.2.2 to 3.0.1
 * Add lazyload package 3.0.0 (2e318b1)
+* Add webencodings 0.5 (3970651) to assist parsing legacy web content
+* Change improve add show search results by comparing search term to an additional unidecoded result set
+* Change webserver startup to correctly use xheaders in reverse proxy or load balance set-ups
+* Update backports_abc 0.4 to 0.5
+* Update Beautiful Soup 4.4.0 (r397) to 4.5.3 (r439)
+* Update cachecontrol library 0.11.5 to 0.11.7 (3b3b776)
+* Update Certifi 2015.11.20.1 (385476b) to 2017.01.23 (9f9dc30)
+* Update feedparser library 5.2.0 (8c62940) to 5.2.1 (f1dd1bb)
+* Update html5lib 0.99999999/1.0b9 (46dae3d) to (1a28d72)
+* Update IMDb 5.1dev20160106 to 5.1 (r907)
+* Update moment.js 2.15.1 to 2.17.1
+* Update PNotify library 2.1.0 to 3.0.0 (175af26)
+* Update profilehooks 1.8.2.dev0 (ee3f1a8) to 1.9.0 (de7d59b)
+* Update rarfile to 3.0 (3e54b22)
+* Update Requests library 2.9.1 (a1c9b84) to 2.13.0 (fc54869)
+* Update SimpleJSON library 3.8.1 (6022794) to 3.10.0 (c52efea)
+* Update Six compatibility library 1.10.0 (r405) to 1.10.0 (r433)
+* Update socks from SocksiPy 1.0 to PySocks 1.6.5 (b4323df)
+* Update Tornado Web Server 4.5.dev1 (92f29b8) to 4.5.dev1 (38e493e)
+* Update unidecode library 0.04.18 to 0.04.20 (1e18d98)
+* Update xmltodict library 0.9.2 (eac0031) to 0.10.2 (375d3a6)
+* Update Bootstrap 3.2.0 to 3.3.7
+* Update Bootstrap Hover Dropdown 2.0.11 to 2.2.1
+* Update imagesloaded 3.1.8 to 4.1.1
+* Update jquery.cookie 1.0 (21349d9) to JS-Cookie 2.1.3 (c1aa987)
+* Update jquery.cookiejar 1.0.1 to 1.0.2
+* Update jQuery JSON 2.2 (c908771) to 2.6 (2339804)
+* Update jquery.form plugin 3.35.0 to 3.51.0 (6bf24a5)
+* Update jQuery SelectBoxes 2.2.4 to 2.2.6
+* Update jquery-tokeninput 1.60 to 1.62 (9c36e19)
+* Update jQuery-UI 1.10.4 to 1.12.1 - minimum supported IE is 8
+* Update jQuery UI Touch Punch 0.2.2 to 0.2.3
+* Update qTip 2.2.1 to 2.2.2
+* Update tablesorter 2.17.7 to 2.28.5
+* Update jQuery 1.8.3 to 2.2.4
+* Add one time run to start up that deletes troublemaking compiled files
+* Fix reload of homepage after restart in some browsers
+* Change add IPv4 config option when enabling IPv6.
 
 
 [develop changelog]
 
+* Fix "too many redirects" or "no CSS/JS content" delivered
+* Change restart/shutdown to use updated jQuery
 
 
 ### 0.12.5 (2017-01-16 16:22:00 UTC)
