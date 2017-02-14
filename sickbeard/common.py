@@ -221,9 +221,9 @@ class Quality:
         elif checkName(['(pdtv|hdtv|dsr|tvrip)([-]|.((aac|ac3|dd).?\d\.?\d.)*(xvid|x264|h.?264))'], all) and not checkName(['(1080|2160)[pi]'], all) \
                 and not checkName(['hr.ws.pdtv.(x264|h.?264)'], any):
             return Quality.SDTV
-        elif checkName(['web.?(dl|rip|.[hx]26[45])', 'xvid|x26[45]|.?26[45]'], all) and not checkName(['(720|1080|2160)[pi]'], all):
+        elif checkName(['web.?(dl|rip|.[hx]26[45])', 'xvid|x26[45]|.?26[45]'], all) and not checkName(['(1080|2160)[pi]'], all):
             return Quality.SDTV
-        elif checkName(['(dvd.?rip|b[r|d]rip)(.ws)?(.(xvid|divx|x264|h.?264))?'], any) and not checkName(['(720|1080|2160)[pi]'], all):
+        elif checkName(['(dvd.?rip|b[r|d]rip)(.ws)?(.(xvid|divx|x264|h.?264))?'], any) and not checkName(['(1080|2160)[pi]'], all):
             return Quality.SDDVD
         elif checkName(['(xvid|divx|480p)'], any) and not checkName(['(720|1080|2160)[pi]'], all) \
                 and not checkName(['hr.ws.pdtv.(x264|h.?264)'], any):
