@@ -34,6 +34,7 @@ from sickbeard.indexers.indexer_config import *
 from io import BytesIO
 from lib.dateutil import parser
 from sickbeard.network_timezones import sb_timezone
+from sickbeard.helpers import tryInt
 
 try:
   from lxml import etree
@@ -81,7 +82,7 @@ class NewznabConstants:
                    'traktid': INDEXER_TRAKT,
                    'q': SEARCH_TEXT,
                    'season': SEARCH_SEASON,
-                   'episode': SEARCH_EPISODE}
+                   'ep': SEARCH_EPISODE}
 
     def __init__(self):
         pass
@@ -90,7 +91,7 @@ class NewznabConstants:
 class NewznabProvider(generic.NZBProvider):
 
     def __init__(self, name, url, key='', cat_ids=None, search_mode=None,
-                 search_fallback=False, enable_recentsearch=False, enable_backlog=False):
+                 search_fallback=False, enable_recentsearch=False, enable_backlog=False, enable_scheduled_backlog=False):
         generic.NZBProvider.__init__(self, name, True, False)
 
         self.url = url
@@ -98,9 +99,10 @@ class NewznabProvider(generic.NZBProvider):
         self.cat_ids = cat_ids or ''
         self._cat_ids = None
         self.search_mode = search_mode or 'eponly'
-        self.search_fallback = search_fallback
-        self.enable_recentsearch = enable_recentsearch
-        self.enable_backlog = enable_backlog
+        self.search_fallback = bool(tryInt(search_fallback))
+        self.enable_recentsearch = bool(tryInt(enable_recentsearch))
+        self.enable_backlog = bool(tryInt(enable_backlog))
+        self.enable_scheduled_backlog = bool(tryInt(enable_scheduled_backlog, 1))
         self.needs_auth = '0' != self.key.strip()  # '0' in the key setting indicates that api_key is not needed
         self.default = False
         self._caps = {}
@@ -240,7 +242,7 @@ class NewznabProvider(generic.NZBProvider):
         if NewznabConstants.SEARCH_SEASON not in caps or not caps.get(NewznabConstants.SEARCH_SEASON):
             caps[NewznabConstants.SEARCH_SEASON] = 'season'
         if NewznabConstants.SEARCH_EPISODE not in caps or not caps.get(NewznabConstants.SEARCH_EPISODE):
-            caps[NewznabConstants.SEARCH_TEXT] = 'episode'
+            caps[NewznabConstants.SEARCH_TEXT] = 'ep'
         if (INDEXER_TVRAGE not in caps or not caps.get(INDEXER_TVRAGE)) and self.get_id() not in ['sick_beard_index']:
             caps[INDEXER_TVRAGE] = 'rid'
 
@@ -295,9 +297,10 @@ class NewznabProvider(generic.NZBProvider):
         return True
 
     def config_str(self):
-        return '%s|%s|%s|%s|%i|%s|%i|%i|%i' \
+        return '%s|%s|%s|%s|%i|%s|%i|%i|%i|%i' \
                % (self.name or '', self.url or '', self.maybe_apikey() or '', self.cat_ids or '', self.enabled,
-                  self.search_mode or '', self.search_fallback, self.enable_recentsearch, self.enable_backlog)
+                  self.search_mode or '', self.search_fallback, self.enable_recentsearch, self.enable_backlog,
+                  self.enable_scheduled_backlog)
 
     def _season_strings(self, ep_obj):
 
@@ -344,7 +347,7 @@ class NewznabProvider(generic.NZBProvider):
                 params = base_params.copy()
                 params['q'] = '%s%s%s' % (cur_exception, spacer, ep_detail)
                 'season' in params and params.pop('season')
-                'episode' in params and params.pop('episode')
+                'ep' in params and params.pop('ep')
                 search_params.append(params)
 
         return [{'Season': search_params}]
@@ -362,18 +365,18 @@ class NewznabProvider(generic.NZBProvider):
             airdate = str(ep_obj.airdate).split('-')
             base_params['season'] = airdate[0]
             if ep_obj.show.air_by_date:
-                base_params['episode'] = '/'.join(airdate[1:])
+                base_params['ep'] = '/'.join(airdate[1:])
                 ep_detail = '+"%s.%s"' % (base_params['season'], '.'.join(airdate[1:]))
         elif ep_obj.show.is_anime:
-            base_params['episode'] = '%i' % (helpers.tryInt(ep_obj.scene_absolute_number) or
+            base_params['ep'] = '%i' % (helpers.tryInt(ep_obj.scene_absolute_number) or
                                         helpers.tryInt(ep_obj.scene_episode))
-            ep_detail = '%02d' % helpers.tryInt(base_params['episode'])
+            ep_detail = '%02d' % helpers.tryInt(base_params['ep'])
         else:
-            base_params['season'], base_params['episode'] = (
+            base_params['season'], base_params['ep'] = (
                 (ep_obj.season, ep_obj.episode), (ep_obj.scene_season, ep_obj.scene_episode))[ep_obj.show.is_scene]
             ep_detail = sickbeard.config.naming_ep_type[2] % {
                 'seasonnumber': helpers.tryInt(base_params['season'], 1),
-                'episodenumber': helpers.tryInt(base_params['episode'], 1)}
+                'episodenumber': helpers.tryInt(base_params['ep'], 1)}
 
         # id search
         params = base_params.copy()
@@ -391,7 +394,7 @@ class NewznabProvider(generic.NZBProvider):
 
         spacer = 'geek' in self.get_id() and ' ' or '.'
         if sickbeard.scene_exceptions.has_abs_episodes(ep_obj):
-            search_params.append({'q': '%s%s%s' % (ep_obj.show.name, spacer, base_params['episode'])})
+            search_params.append({'q': '%s%s%s' % (ep_obj.show.name, spacer, base_params['ep'])})
         for cur_exception in name_exceptions:
             params = base_params.copy()
             cur_exception = cur_exception.replace('.', spacer)
@@ -402,7 +405,7 @@ class NewznabProvider(generic.NZBProvider):
                 params = base_params.copy()
                 params['q'] = '%s%s%s' % (cur_exception, spacer, ep_detail)
                 'season' in params and params.pop('season')
-                'episode' in params and params.pop('episode')
+                'ep' in params and params.pop('ep')
                 search_params.append(params)
 
         return [{'Episode': search_params}]
@@ -616,7 +619,7 @@ class NewznabProvider(generic.NZBProvider):
                     base_params['cat'] = ','.join(sorted(set((self.cat_ids.split(',') if self.cat_ids else []) + cat)))
 
                 request_params = base_params.copy()
-                if 'Propers' == mode and 'q' in params and not (any(x in params for x in ['season', 'episode'])):
+                if 'Propers' == mode and 'q' in params and not (any(x in params for x in ['season', 'ep'])):
                     request_params['t'] = 'search'
                 request_params.update(params)
 

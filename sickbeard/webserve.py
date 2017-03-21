@@ -63,12 +63,14 @@ from lib import adba
 from lib import subliminal
 from lib.dateutil import tz
 import lib.rarfile.rarfile as rarfile
+from unidecode import unidecode
 
 from lib.libtrakt import TraktAPI
 from lib.libtrakt.exceptions import TraktException, TraktAuthException
 from trakt_helpers import build_config, trakt_collection_remove_account
 from sickbeard.bs4_parser import BS4Parser
 from lib.tmdb_api import TMDB
+from lib.tvdb_api.tvdb_exceptions import tvdb_exception
 
 try:
     import json
@@ -2552,8 +2554,14 @@ class NewHomeAddShows(Home):
     def searchIndexersForShowName(self, search_term, lang='en', indexer=None):
         if not lang or lang == 'null':
             lang = 'en'
-
-        search_term = search_term.strip().encode('utf-8')
+        term = search_term.decode('utf-8').strip()
+        terms = []
+        try:
+            for t in term.encode('utf-8'), unidecode(term), term:
+                if t not in terms:
+                    terms += [t]
+        except (StandardError, Exception):
+            terms = [search_term.strip().encode('utf-8')]
 
         results = {}
         final_results = []
@@ -2592,14 +2600,32 @@ class NewHomeAddShows(Home):
                 else:
                     logger.log('Searching for shows using search term: %s from tv datasource %s' % (
                         search_term, sickbeard.indexerApi(indexer).name), logger.DEBUG)
-                    results.setdefault(indexer, []).extend(t[search_term])
+                    tvdb_ids = []
+                    for term in terms:
+                        try:
+                            for r in t[term]:
+                                tvdb_id = int(r['id'])
+                                if tvdb_id not in tvdb_ids:
+                                    tvdb_ids.append(tvdb_id)
+                                    results.setdefault(indexer, []).extend([r.copy()])
+                        except tvdb_exception:
+                            pass
             except Exception as e:
                 pass
 
             # Query trakt for tvdb ids
             try:
                 logger.log('Searching for show using search term: %s from tv datasource Trakt' % search_term, logger.DEBUG)
-                resp = self.getTrakt('/search/show?query=%s&extended=full' % search_term)
+                resp = []
+                for term in terms:
+                    result = self.getTrakt('/search/show?query=%s&extended=full' % term)
+                    resp += result
+                    match = False
+                    for r in result:
+                        if term == r.get('show', {}).get('title', ''):
+                            match = True
+                    if match:
+                        break
                 tvdb_ids = []
                 results_trakt = []
                 for item in resp:
@@ -4767,11 +4793,12 @@ class ConfigSearch(Config):
                    nzbget_category=None, nzbget_priority=None, nzbget_host=None, nzbget_use_https=None,
                    backlog_days=None, backlog_frequency=None, search_unaired=None, unaired_recent_search_only=None,
                    recentsearch_frequency=None, nzb_method=None, torrent_method=None, usenet_retention=None,
-                   download_propers=None, check_propers_interval=None, allow_high_priority=None,
+                   download_propers=None, propers_webdl_onegrp=None, check_propers_interval=None,
+                   allow_high_priority=None,
                    torrent_dir=None, torrent_username=None, torrent_password=None, torrent_host=None,
                    torrent_label=None, torrent_path=None, torrent_verify_cert=None,
-                   torrent_seed_time=None, torrent_paused=None, torrent_high_bandwidth=None, ignore_words=None, require_words=None,
-                   backlog_nofull=None):
+                   torrent_seed_time=None, torrent_paused=None, torrent_high_bandwidth=None,
+                   ignore_words=None, require_words=None, backlog_nofull=None):
 
         results = []
 
@@ -4804,6 +4831,7 @@ class ConfigSearch(Config):
         sickbeard.REQUIRE_WORDS = require_words if require_words else ''
 
         sickbeard.DOWNLOAD_PROPERS = config.checkbox_to_value(download_propers)
+        sickbeard.PROPERS_WEBDL_ONEGRP = config.checkbox_to_value(propers_webdl_onegrp)
         if sickbeard.CHECK_PROPERS_INTERVAL != check_propers_interval:
             sickbeard.CHECK_PROPERS_INTERVAL = check_propers_interval
 
@@ -5247,7 +5275,7 @@ class ConfigProviders(Config):
                     if cur_id + '_' + attr in kwargs:
                         setattr(nzb_src, attr, str(kwargs.get(cur_id + '_' + attr)).strip())
 
-                    for attr in ['search_fallback', 'enable_recentsearch', 'enable_backlog']:
+                    for attr in ['search_fallback', 'enable_recentsearch', 'enable_backlog', 'enable_scheduled_backlog']:
                         setattr(nzb_src, attr, config.checkbox_to_value(kwargs.get(cur_id + '_' + attr)))
 
                 else:
@@ -5350,7 +5378,7 @@ class ConfigProviders(Config):
                 setattr(torrent_src, attr, config.to_int(str(kwargs.get(src_id_prefix + attr)).strip()))
 
             for attr in [x for x in ['confirmed', 'freeleech', 'reject_m2ts', 'enable_recentsearch',
-                                     'enable_backlog', 'search_fallback']
+                                     'enable_backlog', 'search_fallback', 'enable_scheduled_backlog']
                          if hasattr(torrent_src, x) and src_id_prefix + attr in kwargs]:
                 setattr(torrent_src, attr, config.checkbox_to_value(kwargs.get(src_id_prefix + attr)))
 
@@ -5392,7 +5420,7 @@ class ConfigProviders(Config):
                 setattr(nzb_src, attr, config.checkbox_to_value(kwargs.get(src_id_prefix + attr)) or
                         not getattr(nzb_src, 'supports_backlog', True))
 
-            for attr in [x for x in ['search_fallback', 'enable_backlog'] if hasattr(nzb_src, x)]:
+            for attr in [x for x in ['search_fallback', 'enable_backlog', 'enable_scheduled_backlog'] if hasattr(nzb_src, x)]:
                 setattr(nzb_src, attr, config.checkbox_to_value(kwargs.get(src_id_prefix + attr)))
 
         sickbeard.NEWZNAB_DATA = '!!!'.join([x.config_str() for x in sickbeard.newznabProviderList])

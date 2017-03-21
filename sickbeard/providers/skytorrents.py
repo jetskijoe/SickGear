@@ -1,7 +1,5 @@
 # coding=utf-8
 #
-# Author: SickGear
-#
 # This file is part of SickGear.
 #
 # SickGear is free software: you can redistribute it and/or modify
@@ -27,29 +25,19 @@ from sickbeard.helpers import tryInt
 from lib.unidecode import unidecode
 
 
-class TorrentShackProvider(generic.TorrentProvider):
+class SkytorrentsProvider(generic.TorrentProvider):
 
     def __init__(self):
-        generic.TorrentProvider.__init__(self, 'TorrentShack', cache_update_freq=20)
 
-        self.url_base = 'https://torrentshack.me/'
+        generic.TorrentProvider.__init__(self, 'Skytorrents', cache_update_freq=6)
+
+        self.url_base = 'https://www.skytorrents.in/'
+
         self.urls = {'config_provider_home_uri': self.url_base,
-                     'login_action': self.url_base + 'login.php',
-                     'search': self.url_base + 'torrents.php?searchstr=%s&%s&' + '&'.join(
-                         ['release_type=both', 'searchtags=', 'tags_type=0',
-                          'order_by=s3', 'order_way=desc', 'torrent_preset=all']),
-                     'get': self.url_base + '%s'}
+                     'search': self.url_base + 'search/all/ad/1/%s?l=en-us', 'get': self.url_base + '%s'}
 
-        self.categories = {'shows': [600, 620, 700, 981, 980], 'anime': [850]}
-
-        self.url = self.urls['config_provider_home_uri']
-
-        self.username, self.password, self.minseed, self.minleech = 4 * [None]
-
-    def _authorised(self, **kwargs):
-
-        return super(TorrentShackProvider, self)._authorised(logged_in=(lambda y=None: self.has_all_cookies('session')),
-                                                             post_params={'keeplogged': '1', 'form_tmpl': True})
+        self.minseed, self.minleech = 2 * [None]
+        self.confirmed = False
 
     def _search_provider(self, search_params, **kwargs):
 
@@ -60,12 +48,12 @@ class TorrentShackProvider(generic.TorrentProvider):
         items = {'Cache': [], 'Season': [], 'Episode': [], 'Propers': []}
 
         rc = dict((k, re.compile('(?i)' + v)) for (k, v) in {
-            'info': 'view', 'get': 'download', 'title': 'view\s+torrent\s+', 'size': '\s{2,}.*'}.iteritems())
+            'info': '^/info/', 'get': '^(/file/|magnet:)', 'verified': 'Verified'}.items())
+
         for mode in search_params.keys():
             for search_string in search_params[mode]:
                 search_string = isinstance(search_string, unicode) and unidecode(search_string) or search_string
-                # fetch 15 results by default, and up to 100 if allowed in user profile
-                search_url = self.urls['search'] % (search_string, self._categories_string(mode, 'filter_cat[%s]=1'))
+                search_url = self.urls['search'] % search_string
 
                 html = self.get_url(search_url)
 
@@ -75,7 +63,7 @@ class TorrentShackProvider(generic.TorrentProvider):
                         raise generic.HaltParseException
 
                     with BS4Parser(html, features=['html5lib', 'permissive']) as soup:
-                        torrent_table = soup.find('table', class_='torrent_table')
+                        torrent_table = soup.find('table', attrs={'class': ['table', 'is-striped']})
                         torrent_rows = [] if not torrent_table else torrent_table.find_all('tr')
 
                         if 2 > len(torrent_rows):
@@ -90,13 +78,14 @@ class TorrentShackProvider(generic.TorrentProvider):
                                 head = head if None is not head else self._header_row(tr)
                                 seeders, leechers, size = [tryInt(n, n) for n in [
                                     cells[head[x]].get_text().strip() for x in 'seed', 'leech', 'size']]
-                                if self._peers_fail(mode, seeders, leechers):
+                                if (self.confirmed and
+                                    not (tr.find('img', src=rc['verified']) or tr.find('img', title=rc['verified']))) \
+                                        or self._peers_fail(mode, seeders, leechers):
                                     continue
 
-                                size = rc['size'].sub('', size)
-                                info = tr.find('a', title=rc['info'])
-                                title = (rc['title'].sub('', info.attrs.get('title', '')) or info.get_text()).strip()
-                                download_url = self._link(tr.find('a', title=rc['get'])['href'])
+                                info = tr.find('a', href=rc['info'])
+                                title = (info.attrs.get('title') or info.get_text()).strip()
+                                download_url = self._link(tr.find('a', href=rc['get'])['href'])
                             except (AttributeError, TypeError, ValueError, KeyError):
                                 continue
 
@@ -107,15 +96,12 @@ class TorrentShackProvider(generic.TorrentProvider):
                     pass
                 except (StandardError, Exception):
                     logger.log(u'Failed to parse. Traceback: %s' % traceback.format_exc(), logger.ERROR)
+
                 self._log_search(mode, len(items[mode]) - cnt, search_url)
 
             results = self._sort_seeding(mode, results + items[mode])
 
         return results
 
-    def _episode_strings(self, ep_obj, **kwargs):
 
-        return generic.TorrentProvider._episode_strings(self, ep_obj, sep_date='.', **kwargs)
-
-
-provider = TorrentShackProvider()
+provider = SkytorrentsProvider()

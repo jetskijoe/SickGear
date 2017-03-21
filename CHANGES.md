@@ -43,13 +43,70 @@
 * Update jQuery 1.8.3 to 2.2.4
 * Add one time run to start up that deletes troublemaking compiled files
 * Fix reload of homepage after restart in some browsers
+* Add detection of '1080p Remux' releases as fullhdbluray
+* Add "Perform search tasks" to Config/Media Providers/Options
+* Change improve clarity of enabled providers on Config/Media Providers
+* Add option to limit WebDL propers to original release group under Config/Search/Media Search
 * Change add IPv4 config option when enabling IPv6.
+* Add AlphaReign torrent provider
+* Add Skytorrents torrent provider
+* Change do not have shows checked by default on import page. To re-enable import shows checked by default,
+  1) On config page 'Save' 2) Stop SG 3) Find 'import_default_checked_shows' in config.ini and set '1' 4) Start SG
 
 
 [develop changelog]
 
 * Fix "too many redirects" or "no CSS/JS content" delivered
 * Change restart/shutdown to use updated jQuery
+
+
+### 0.12.11 (2017-03-17 02:00:00 UTC)
+
+* Change SpeedCD to cookie auth as username/password is not reliable
+* Change Usenet-Crawler media provider icon
+
+
+### 0.12.10 (2017-03-12 16:00:00 UTC)
+
+* Change refactor client for Deluge 1.3.14 compatibility
+* Change ensure IPT authentication is valid before use
+
+
+### 0.12.9 (2017-02-24 18:40:00 UTC)
+
+* Fix issue saving custom NewznabProviders
+
+
+### 0.12.8 (2017-02-19 13:50:00 UTC)
+
+* Change BTN API hostname
+
+
+### 0.12.7 (2017-02-17 15:00:00 UTC)
+
+* Change accept lists in JSON responses
+* Change do not log error for empty BTN un/pw in most cases
+* Change BTN to only try API once when doing alternative name searches
+* Change when API fails, warn users as a tip that they can configure un/pw
+
+
+### 0.12.6 (2017-02-17 03:48:00 UTC)
+
+* Change skip episodes that have no wanted qualities
+* Change download picked .nzb file on demand and not before
+* Change improve provider title processing
+* Change improve handling erroneous JSON responses
+* Change improve find show with unicode characters
+* Change improve results for providers Omgwtf, SpeedCD, Transmithenet, Zoogle
+* Change validate .torrent files that contain optional header data
+* Fix case where an episode status was not restored on failure
+* Add raise log error if no wanted qualities are found
+* Change add un/pw to Config/Media providers/Options for BTN API graceful fallback (can remove Api key for security)
+* Change only download torrent once when using blackhole
+* Add Cloudflare module 1.6.8 (be0a536) to handle specific CF connections
+* Add Js2Py 0.43 (c1442f1) Cloudflare dependency
+* Add pyjsparser 2.4.5 (cd5b829) Js2Py dependency
+* Remove Torrentshack
 
 
 ### 0.12.5 (2017-01-16 16:22:00 UTC)

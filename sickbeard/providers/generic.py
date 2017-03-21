@@ -33,6 +33,7 @@ from base64 import b16encode, b32decode
 import sickbeard
 import requests
 import requests.cookies
+from cfscrape import CloudflareScraper
 from hachoir_parser import guessParser
 from hachoir_core.error import HachoirError
 from hachoir_core.stream import FileInputStream
@@ -70,11 +71,12 @@ class GenericProvider:
         self.enabled = False
         self.enable_recentsearch = False
         self.enable_backlog = False
+        self.enable_scheduled_backlog = True
         self.categories = None
 
         self.cache = tvcache.TVCache(self)
 
-        self.session = requests.session()
+        self.session = CloudflareScraper.create_scraper()
 
         self.headers = {
             # Using USER_AGENT instead of Mozilla to keep same user agent along authentication and download phases,
@@ -208,7 +210,7 @@ class GenericProvider:
             cache_file = ek.ek(os.path.join, cache_dir, base_name)
 
             self.session.headers['Referer'] = url
-            if helpers.download_file(url, cache_file, session=self.session):
+            if getattr(result, 'cache_file', None) or helpers.download_file(url, cache_file, session=self.session):
 
                 if self._verify_download(cache_file):
                     logger.log(u'Downloaded %s result from %s' % (self.name, url))
@@ -323,7 +325,7 @@ class GenericProvider:
             url_tmpl = url_tmpl or self.urls['get']
         except (StandardError, Exception):
             url_tmpl = '%s'
-        return url if re.match('(?i)https?://', url) else (url_tmpl % url.lstrip('/'))
+        return url if re.match('(?i)(https?://|magnet:)', url) else (url_tmpl % url.lstrip('/'))
 
     def _header_row(self, table_row, custom_match=None, header_strip=''):
         """
@@ -645,7 +647,7 @@ class GenericProvider:
         if hasattr(self, 'cookies'):
             cookies = self.cookies
 
-            if not (cookies and re.match('^(\w+=\w+[;\s]*)+$', cookies)):
+            if not (cookies and re.match('^(?:\w+=[^;\s]+[;\s]*)+$', cookies)):
                 return False
 
             cj = requests.utils.add_dict_to_cookiejar(self.session.cookies,
@@ -718,7 +720,7 @@ class NZBProvider(object, GenericProvider):
         if has_key:
             return has_key
         if None is has_key:
-            raise AuthException('%s for %s is empty in config provider options'
+            raise AuthException('%s for %s is empty in Media Providers/Options'
                                 % ('API key' + ('', ' and/or Username')[hasattr(self, 'username')], self.name))
 
         return GenericProvider._check_auth(self)
@@ -1097,7 +1099,7 @@ class TorrentProvider(object, GenericProvider):
         elif hasattr(self, 'username') and hasattr(self, 'api_key'):
             if self.username and self.api_key:
                 return True
-            setting = 'Apikey or Username'
+            setting = 'Api key or Username'
         elif hasattr(self, 'username') and hasattr(self, 'passkey'):
             if self.username and self.passkey:
                 return True
@@ -1109,7 +1111,7 @@ class TorrentProvider(object, GenericProvider):
         elif hasattr(self, 'api_key'):
             if self.api_key:
                 return True
-            setting = 'Apikey'
+            setting = 'Api key'
         elif hasattr(self, 'passkey'):
             if self.passkey:
                 return True
@@ -1117,7 +1119,7 @@ class TorrentProvider(object, GenericProvider):
         else:
             return not is_required and GenericProvider._check_auth(self)
 
-        raise AuthException('%s for %s is empty in config provider options' % (setting, self.name))
+        raise AuthException('%s for %s is empty in Media Providers/Options' % (setting, self.name))
 
     def find_propers(self, **kwargs):
         """

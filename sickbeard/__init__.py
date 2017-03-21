@@ -90,6 +90,11 @@ showList = None
 UPDATE_SHOWS_ON_START = False
 SHOW_UPDATE_HOUR = 3
 
+# non ui settings
+REMOVE_FILENAME_CHARS = None
+IMPORT_DEFAULT_CHECKED_SHOWS = None
+# /non ui settings
+
 providerList = []
 newznabProviderList = []
 torrentRssProviderList = []
@@ -200,6 +205,7 @@ TORRENT_METHOD = None
 TORRENT_DIR = None
 DOWNLOAD_PROPERS = False
 CHECK_PROPERS_INTERVAL = None
+PROPERS_WEBDL_ONEGRP = True
 ALLOW_HIGH_PRIORITY = False
 NEWZNAB_DATA = ''
 
@@ -226,7 +232,6 @@ SEARCH_UNAIRED = False
 UNAIRED_RECENT_SEARCH_ONLY = True
 
 ADD_SHOWS_WO_DIR = False
-REMOVE_FILENAME_CHARS = None
 CREATE_MISSING_SHOW_DIRS = False
 RENAME_EPISODES = False
 AIRDATE_EPISODES = False
@@ -518,8 +523,8 @@ def initialize(console_logging=True):
         # Misc
         global __INITIALIZED__, showList, providerList, newznabProviderList, torrentRssProviderList, \
             WEB_HOST, WEB_ROOT, ACTUAL_CACHE_DIR, CACHE_DIR, ZONEINFO_DIR, ADD_SHOWS_WO_DIR, CREATE_MISSING_SHOW_DIRS, \
-            RECENTSEARCH_STARTUP, NAMING_FORCE_FOLDERS, SOCKET_TIMEOUT, DEBUG, INDEXER_DEFAULT, REMOVE_FILENAME_CHARS, \
-            CONFIG_FILE
+            RECENTSEARCH_STARTUP, NAMING_FORCE_FOLDERS, SOCKET_TIMEOUT, DEBUG, INDEXER_DEFAULT, CONFIG_FILE, \
+            REMOVE_FILENAME_CHARS, IMPORT_DEFAULT_CHECKED_SHOWS
         # Schedulers
         # global traktCheckerScheduler
         global recentSearchScheduler, backlogSearchScheduler, showUpdateScheduler, \
@@ -551,7 +556,7 @@ def initialize(console_logging=True):
         global BRANCH, CUR_COMMIT_BRANCH, GIT_REMOTE, CUR_COMMIT_HASH, GIT_PATH, CPU_PRESET, ANON_REDIRECT, \
             ENCRYPTION_VERSION, PROXY_SETTING, PROXY_INDEXERS, FILE_LOGGING_PRESET
         # Search Settings/Episode
-        global DOWNLOAD_PROPERS, CHECK_PROPERS_INTERVAL, RECENTSEARCH_FREQUENCY, \
+        global DOWNLOAD_PROPERS, PROPERS_WEBDL_ONEGRP, CHECK_PROPERS_INTERVAL, RECENTSEARCH_FREQUENCY, \
             BACKLOG_DAYS, BACKLOG_NOFULL, BACKLOG_FREQUENCY, USENET_RETENTION, IGNORE_WORDS, REQUIRE_WORDS, \
             ALLOW_HIGH_PRIORITY, SEARCH_UNAIRED, UNAIRED_RECENT_SEARCH_ONLY
         # Search Settings/NZB search
@@ -788,6 +793,7 @@ def initialize(console_logging=True):
             TORRENT_METHOD = 'blackhole'
 
         DOWNLOAD_PROPERS = bool(check_setting_int(CFG, 'General', 'download_propers', 1))
+        PROPERS_WEBDL_ONEGRP = bool(check_setting_int(CFG, 'General', 'propers_webdl_onegrp', 1))
         CHECK_PROPERS_INTERVAL = check_setting_str(CFG, 'General', 'check_propers_interval', '')
         if CHECK_PROPERS_INTERVAL not in ('15m', '45m', '90m', '4h', 'daily'):
             CHECK_PROPERS_INTERVAL = 'daily'
@@ -838,6 +844,7 @@ def initialize(console_logging=True):
         CREATE_MISSING_SHOW_DIRS = bool(check_setting_int(CFG, 'General', 'create_missing_show_dirs', 0))
         ADD_SHOWS_WO_DIR = bool(check_setting_int(CFG, 'General', 'add_shows_wo_dir', 0))
         REMOVE_FILENAME_CHARS = check_setting_str(CFG, 'General', 'remove_filename_chars', '')
+        IMPORT_DEFAULT_CHECKED_SHOWS = bool(check_setting_int(CFG, 'General', 'import_default_checked_shows', 0))
 
         SAB_USERNAME = check_setting_str(CFG, 'SABnzbd', 'sab_username', '')
         SAB_PASSWORD = check_setting_str(CFG, 'SABnzbd', 'sab_password', '')
@@ -1145,6 +1152,9 @@ def initialize(console_logging=True):
                                                    not getattr(torrent_prov, 'supports_backlog')
             if hasattr(torrent_prov, 'enable_backlog'):
                 torrent_prov.enable_backlog = bool(check_setting_int(CFG, prov_id_uc, prov_id + '_enable_backlog', 1))
+            if hasattr(torrent_prov, 'enable_scheduled_backlog'):
+                torrent_prov.enable_scheduled_backlog = bool(check_setting_int(
+                    CFG, prov_id_uc, prov_id + '_enable_scheduled_backlog', 1))
             if hasattr(torrent_prov, 'search_mode'):
                 torrent_prov.search_mode = check_setting_str(CFG, prov_id_uc, prov_id + '_search_mode', 'eponly')
             if hasattr(torrent_prov, 'search_fallback'):
@@ -1172,6 +1182,9 @@ def initialize(console_logging=True):
                                                not getattr(nzb_prov, 'supports_backlog')
             if hasattr(nzb_prov, 'enable_backlog'):
                 nzb_prov.enable_backlog = bool(check_setting_int(CFG, prov_id_uc, prov_id + '_enable_backlog', 1))
+            if hasattr(nzb_prov, 'enable_scheduled_backlog'):
+                nzb_prov.enable_scheduled_backlog = bool(check_setting_int(
+                    CFG, prov_id_uc, prov_id + '_enable_scheduled_backlog', 1))
 
         if not os.path.isfile(CONFIG_FILE):
             logger.log(u'Unable to find \'%s\', all settings will be default!' % CONFIG_FILE, logger.DEBUG)
@@ -1465,6 +1478,7 @@ def save_config():
     new_config['General']['backlog_frequency'] = int(BACKLOG_FREQUENCY)
     new_config['General']['update_frequency'] = int(UPDATE_FREQUENCY)
     new_config['General']['download_propers'] = int(DOWNLOAD_PROPERS)
+    new_config['General']['propers_webdl_onegrp'] = int(PROPERS_WEBDL_ONEGRP)
     new_config['General']['check_propers_interval'] = CHECK_PROPERS_INTERVAL
     new_config['General']['allow_high_priority'] = int(ALLOW_HIGH_PRIORITY)
     new_config['General']['recentsearch_startup'] = int(RECENTSEARCH_STARTUP)
@@ -1534,6 +1548,7 @@ def save_config():
     new_config['General']['create_missing_show_dirs'] = int(CREATE_MISSING_SHOW_DIRS)
     new_config['General']['add_shows_wo_dir'] = int(ADD_SHOWS_WO_DIR)
     new_config['General']['remove_filename_chars'] = REMOVE_FILENAME_CHARS
+    new_config['General']['import_default_checked_shows'] = int(IMPORT_DEFAULT_CHECKED_SHOWS)
 
     new_config['General']['extra_scripts'] = '|'.join(EXTRA_SCRIPTS)
     new_config['General']['git_path'] = GIT_PATH
@@ -1562,7 +1577,7 @@ def save_config():
                 ('api_key', None), ('passkey', None), ('digest', None), ('hash', None), ('username', ''), ('uid', ''),
                 ('minseed', 1), ('minleech', 1), ('confirmed', 1), ('freeleech', 1), ('reject_m2ts', 1),
                 ('enable_recentsearch', 1), ('enable_backlog', 1), ('search_mode', None), ('search_fallback', 1),
-                ('seed_time', None)] if hasattr(src, k)]:
+                ('seed_time', None), ('enable_scheduled_backlog', 1)] if hasattr(src, k)]:
             new_config[src_id_uc][setting] = value
 
         if hasattr(src, '_seed_ratio'):
@@ -1579,7 +1594,8 @@ def save_config():
         for attr in [x for x in ['api_key', 'username', 'search_mode'] if hasattr(src, x)]:
             new_config[src_id_uc]['%s_%s' % (src_id, attr)] = getattr(src, attr)
 
-        for attr in [x for x in ['enable_recentsearch', 'enable_backlog', 'search_fallback'] if hasattr(src, x)]:
+        for attr in [x for x in ['enable_recentsearch', 'enable_backlog', 'search_fallback',
+                                 'enable_scheduled_backlog'] if hasattr(src, x)]:
             new_config[src_id_uc]['%s_%s' % (src_id, attr)] = helpers.tryInt(getattr(src, attr, None))
 
     new_config['SABnzbd'] = {}
