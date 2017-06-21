@@ -26,14 +26,14 @@ from sickbeard import logger, encodingKludge as ek
 # usenet
 from . import newznab, omgwtfnzbs
 # torrent
-from . import alpharatio, alphareign, beyondhd, bithdtv, bitmetv, btn, btscene, dh, extratorrent, \
-    fano, filelist, freshontv, funfile, gftracker, grabtheinfo, hd4free, hdbits, hdspace, hdtorrents, \
-    iptorrents, limetorrents, morethan, ncore, pisexy, pretome, privatehd, ptf, \
+from . import alpharatio, beyondhd, bithdtv, bitmetv, btn, btscene, dh, \
+    fano, filelist, funfile, gftracker, grabtheinfo, hd4free, hdbits, hdspace, hdtorrents, \
+    iptorrents, limetorrents, morethan, nebulance, ncore, nyaa, pisexy, pretome, privatehd, ptf, \
     rarbg, revtt, scc, scenetime, shazbat, skytorrents, speedcd, \
     thepiratebay, torlock, torrentday, torrenting, torrentleech, \
-    torrentz2, transmithe_net, tvchaosuk, zooqle
+    torrentz2, tvchaosuk, zooqle
 # anime
-from . import anizb, nyaatorrents, tokyotoshokan
+from . import anizb, tokyotoshokan
 # custom
 try:
     from . import custom01
@@ -42,7 +42,6 @@ except:
 
 __all__ = ['omgwtfnzbs',
            'alpharatio',
-           'alphareign',
            'anizb',
            'beyondhd',
            'bithdtv',
@@ -51,10 +50,8 @@ __all__ = ['omgwtfnzbs',
            'btscene',
            'custom01',
            'dh',
-           'extratorrent',
            'fano',
            'filelist',
-           'freshontv',
            'funfile',
            'gftracker',
            'grabtheinfo',
@@ -65,7 +62,9 @@ __all__ = ['omgwtfnzbs',
            'iptorrents',
            'limetorrents',
            'morethan',
+           'nebulance',
            'ncore',
+           'nyaa',
            'pisexy',
            'pretome',
            'privatehd',
@@ -83,10 +82,8 @@ __all__ = ['omgwtfnzbs',
            'torrenting',
            'torrentleech',
            'torrentz2',
-           'transmithe_net',
            'tvchaosuk',
            'zooqle',
-           'nyaatorrents',
            'tokyotoshokan',
            ]
 

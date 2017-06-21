@@ -1,6 +1,3 @@
-# coding=utf-8
-#
-# Author: SickGear
 #
 # This file is part of SickGear.
 #
@@ -21,85 +18,84 @@ import re
 import traceback
 
 from . import generic
-from sickbeard import logger
+from sickbeard import logger, show_name_helpers
 from sickbeard.bs4_parser import BS4Parser
 from sickbeard.helpers import tryInt
 from lib.unidecode import unidecode
 
 
-class AlphaReignProvider(generic.TorrentProvider):
+class NyaaProvider(generic.TorrentProvider):
 
     def __init__(self):
+        generic.TorrentProvider.__init__(self, 'Nyaa', anime_only=True)
 
-        generic.TorrentProvider.__init__(self, 'AlphaReign')
-
-        self.url_base = 'https://alphareign.se/'
-        self.urls = {'config_provider_home_uri': self.url_base,
-                     'login_action': self.url_base, 'search': self.url_base + '?query=%s'}
+        self.url_base = 'https://www.nyaa.si/'
+        self.urls = {'config_provider_home_uri': self.url_base, 'search': self.url_base + '?f=%s&c=1_0&q=%s'}
 
         self.url = self.urls['config_provider_home_uri']
 
-        self.username, self.password, self.minseed, self.minleech = 4 * [None]
-
-    def _authorised(self, **kwargs):
-
-        return super(AlphaReignProvider, self)._authorised(
-            logged_in=(lambda y=None: self.has_all_cookies('token')), post_params={'form_tmpl': True})
+        self.minseed, self.minleech = 2 * [None]
+        self.confirmed = False
 
     def _search_provider(self, search_params, **kwargs):
 
         results = []
-        if not self._authorised():
+
+        if self.show and not self.show.is_anime:
             return results
 
         items = {'Cache': [], 'Season': [], 'Episode': [], 'Propers': []}
 
-        rc = dict((k, re.compile('(?i)' + v)) for (k, v) in {'get': 'magnet:'}.items())
+        rc = dict((k, re.compile('(?i)' + v)) for (k, v) in {'info': 'view', 'get': '(?:torrent|magnet:)'}.items())
         for mode in search_params.keys():
             for search_string in search_params[mode]:
                 search_string = isinstance(search_string, unicode) and unidecode(search_string) or search_string
-                search_url = self.urls['search'] % search_string
+                search_url = self.urls['search'] % ((0, 2)[self.confirmed], search_string)
 
                 html = self.get_url(search_url)
 
                 cnt = len(items[mode])
                 try:
-                    if not html or self._has_no_results(html) or re.search('<h3>Result.*?&quot;.*?&quot;</h3>', html):
+                    if not html or self._has_no_results(html):
                         raise generic.HaltParseException
 
                     with BS4Parser(html, features=['html5lib', 'permissive']) as soup:
-                        torrent_table = soup.find(id='results')
-                        torrent_rows = [] if not torrent_table else torrent_table.find_all('div', class_='result')
+                        torrent_table = soup.find('table', class_='torrent-list')
+                        torrent_rows = [] if not torrent_table else torrent_table.find_all('tr')
 
-                        for tr in torrent_rows:
+                        if 2 > len(torrent_rows):
+                            raise generic.HaltParseException
+
+                        head = None
+                        for tr in torrent_rows[1:]:
+                            cells = tr.find_all('td')
+                            if 5 > len(cells):
+                                continue
                             try:
+                                head = head if None is not head else self._header_row(tr)
                                 seeders, leechers, size = [tryInt(n, n) for n in [
-                                    tr['data-%s' % x].strip() for x in 'seeders', 'leechers', 'size']]
+                                    cells[head[x]].get_text().strip() for x in 'seed', 'leech', 'size']]
                                 if self._peers_fail(mode, seeders, leechers):
                                     continue
 
-                                title = tr['data-name'].strip()
-                                download_magnet = tr.find('a', href=rc['get'])['href']
-                            except (AttributeError, TypeError, ValueError):
+                                title = tr.find('a', href=rc['info']).get_text().strip()
+                                download_url = self._link(tr.find('a', href=rc['get'])['href'])
+                            except (AttributeError, TypeError, ValueError, IndexError):
                                 continue
 
-                            if title and download_magnet:
-                                items[mode].append((title, download_magnet, seeders, self._bytesizer(size)))
+                            if title and download_url:
+                                items[mode].append((title, download_url, seeders, self._bytesizer(size)))
 
                 except generic.HaltParseException:
                     pass
                 except (StandardError, Exception):
                     logger.log(u'Failed to parse. Traceback: %s' % traceback.format_exc(), logger.ERROR)
+
                 self._log_search(mode, len(items[mode]) - cnt, search_url)
 
             results = self._sort_seeding(mode, results + items[mode])
 
         return results
 
-    def _season_strings(self, ep_obj, **kwargs):
-        return generic.TorrentProvider._season_strings(self, ep_obj, scene=False, **kwargs)
 
-    def _episode_strings(self, ep_obj, **kwargs):
-        return generic.TorrentProvider._episode_strings(self, ep_obj, scene=False, **kwargs)
-
-provider = AlphaReignProvider()
+provider = NyaaProvider()

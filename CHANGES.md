@@ -48,16 +48,79 @@
 * Change improve clarity of enabled providers on Config/Media Providers
 * Add option to limit WebDL propers to original release group under Config/Search/Media Search
 * Change add IPv4 config option when enabling IPv6.
-* Add AlphaReign torrent provider
 * Add Skytorrents torrent provider
 * Change do not have shows checked by default on import page. To re-enable import shows checked by default,
   1) On config page 'Save' 2) Stop SG 3) Find 'import_default_checked_shows' in config.ini and set '1' 4) Start SG
+* Add Nyaa (.si) torrent provider
+* Add Trakt watchlist to Add show/Trakt Cards
+* Change revoke application access at Trakt when account is deleted in SG
+* Add persistent hide/unhide cards to Add show/Trakt and Add show/IMDb Cards
+* Change simplify dropdowns at all Add show/Cards
+* Change cosmetic title on shutdown
+* Change use TVDb API v2
+* Change improve search for PROPERS
+* Change catch show update task errors
 
 
 [develop changelog]
 
 * Fix "too many redirects" or "no CSS/JS content" delivered
 * Change restart/shutdown to use updated jQuery
+* Remove AlphaReign torrent provider
+
+
+### 0.12.21 (2017-06-19 23:35:00 UTC)
+
+* Change provider Bit-HDTV user/pass to cookie
+
+
+### 0.12.20 (2017-06-14 22:00:00 UTC)
+
+* Change send info now required by qBittorrent 3.13+ clients
+
+
+### 0.12.19 (2017-05-20 10:30:00 UTC)
+
+* Remove provider Freshon.tv
+
+
+### 0.12.18 (2017-05-15 23:00:00 UTC)
+
+* Change thexem, remove tvrage from xem
+
+
+### 0.12.17 (2017-05-15 22:10:00 UTC)
+
+* Remove provider ExtraTorrent
+* Change thexem tvrage mappings are deprecated, data fetch disabled
+
+
+### 0.12.16 (2017-05-05 16:40:00 UTC)
+
+* Fix multiple SpeedCD cookie
+
+
+### 0.12.15 (2017-05-04 00:40:00 UTC)
+
+* Remove provider Nyaa
+* Change improve RSS validation (particularly for anime)
+* Change improve support for legacy magnet encoding
+
+
+### 0.12.14 (2017-05-02 17:10:00 UTC)
+
+* Change provider Transmithe.net is now Nebulance
+
+
+### 0.12.13 (2017-04-23 18:50:00 UTC)
+
+* Change add filter for thetvdb show overview
+* Change remove SpeedCD 'inspeed_uid' cookie requirement
+
+
+### 0.12.12 (2017-03-30 03:15:00 UTC)
+
+* Change search of SpeedCD, TVChaos and parse of TorrentDay
 
 
 ### 0.12.11 (2017-03-17 02:00:00 UTC)

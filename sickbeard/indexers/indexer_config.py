@@ -23,7 +23,7 @@ indexerConfig = {
         id=INDEXER_TVDB,
         name='TheTVDB',
         module=Tvdb,
-        api_params=dict(apikey='F9C450E78D99172E', language='en', useZip=True),
+        api_params=dict(apikey='F9C450E78D99172E', language='en'),
         active=True,
         dupekey='',
         mapped_only=False,
@@ -103,7 +103,6 @@ indexerConfig[info_src].update(dict(
               'showinfo.php?key=%(apikey)s&sid=' % indexerConfig[info_src]['api_params']),
     show_url='%sshows/id-' % indexerConfig[info_src]['main_url'],
     scene_url='https://sickgear.github.io/sg_tvrage_scene_exceptions/exceptions.txt',
-    xem_origin='rage',
     defunct=True,
 ))
 
